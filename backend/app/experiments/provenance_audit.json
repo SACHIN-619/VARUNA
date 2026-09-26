@@ -1,0 +1,51 @@
+{
+  "benchmark_id": "EXP_TEMPORAL_MONSOON_BENCHMARK_2026",
+  "audited_at": "2026-09-26T15:58:00.989395+00:00",
+  "audit_status": "AUDIT_COMPLETE_SYNTHETIC_CLASSIFIED",
+  "sample_counts": {
+    "total_days": 500,
+    "training_days": 350,
+    "unseen_test_days": 150,
+    "forecast_records": 2000,
+    "observation_records": 500
+  },
+  "provenance_classification": {
+    "real_public_records": 0,
+    "synthetic_records": 2500,
+    "derived_records": 2000,
+    "future_provider_only": [
+      "IMDAA_NETCDF_INGESTION",
+      "NCMRWF_FTP_VPN_ADAPTER",
+      "IMD_AWS_REALTIME_PULL"
+    ]
+  },
+  "data_sources": [
+    {
+      "name": "Synthetic Monte Carlo Indian Monsoon Simulation (benchmark_runner.py)",
+      "classification": "SYNTHETIC_DATA",
+      "seed": 101,
+      "observations_distribution": "Gamma(4.0, 22.0) [Heavy Rain] / Exponential(10.0) [Normal]",
+      "error_distribution": "Normal(bias, sigma + lead_decay)",
+      "leakage_status": "RESOLVED_STRICTLY_CAUSAL_EMA"
+    },
+    {
+      "name": "IMDAAObservationProvider (observation_provider.py)",
+      "classification": "SYNTHETIC_DATA",
+      "description": "Provider adapter interface; current implementation simulates climatology with np.random; no NetCDF/GRIB reanalysis files currently ingested."
+    },
+    {
+      "name": "Model Providers (providers.py - NCUM, GFS, WRF, AI_WEATHER)",
+      "classification": "DEMO_DATA / SYNTHETIC_DATA",
+      "description": "Provider adapter interfaces return representative static/demo rainfall values for single-point API testing."
+    }
+  ],
+  "temporal_split_audit": {
+    "split_ratio": "70% Train / 30% Unseen Test",
+    "split_date": "2025-05-17",
+    "chronological_order": "Day 1 to 350 (Train) < Day 351 to 500 (Unseen Test)",
+    "leakage_audit_findings": {
+      "prior_state": "DETECTED_AND_FIXED: Prior code used current-day error (err_t) scaled by 0.4 in recent_errors feature vector, causing synthetic information leakage.",
+      "current_state": "STRICTLY_CAUSAL: recent_errors at forecast initialization uses only verified lagged errors from Day < t via causal Exponential Moving Average (alpha=0.20). Zero same-day leakage."
+    }
+  }
+}

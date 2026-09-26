@@ -138,25 +138,25 @@ The official problem statement explicitly calls for **model-weight maps**. VARUN
 
 ## 5. Empirical Verification Results (Held-Out Unseen Test Days)
 
-Evaluated on **150 strictly held-out chronological test days** under realistic Indian monsoon conditions (zero temporal data leakage):
+Evaluated on **150 strictly held-out chronological test days** under realistic Indian monsoon conditions (zero temporal data leakage; strictly causal rolling error features):
 
 | Forecasting Method | Paradigm | MAE (mm) | RMSE (mm) | Bias (mm) | Correlation ($r$) | CSI ($\ge 64.5$ mm) | Brier Score |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **GFS** | Individual Global NWP | 11.72 | 15.12 | +5.07 | 0.949 | 0.676 | 0.082 |
-| **WRF** | Individual Regional Mesoscale | 11.24 | 14.83 | +0.70 | 0.932 | 0.815 | 0.078 |
-| **AI Weather Model** | Individual ML Forecast | 8.74 | 11.69 | +0.73 | 0.959 | 0.714 | 0.065 |
-| **NCUM** | Individual National NWP | 7.64 | 10.19 | +0.46 | 0.970 | 0.893 | 0.052 |
-| **Simple Multi-Model Average** | Baseline 1 (Equal 25% Weights) | 5.12 | 6.59 | +1.74 | 0.988 | 1.000 | 0.041 |
-| **Static Operational Blend** | Baseline 2 (Fixed Weights) | 5.45 | 6.94 | +1.48 | 0.986 | 1.000 | 0.044 |
-| **Adaptive Reliability Baseline**| Baseline 3 (Heuristic Rules) | 4.33 | 5.64 | +1.14 | 0.991 | 1.000 | 0.035 |
-| **Adaptive ML Meta-Model** | **VARUNA Learned ML (Target)** | **3.16** | **4.06** | **+0.47** | **0.995** | **0.963** | **0.024** |
+| **GFS** | Individual Global NWP | 11.72 | 15.12 | +5.07 | 0.949 | 0.676 | — |
+| **WRF** | Individual Regional Mesoscale | 11.24 | 14.83 | +0.70 | 0.932 | 0.815 | — |
+| **AI Weather Model** | Individual ML Forecast | 8.74 | 11.69 | +0.73 | 0.959 | 0.714 | — |
+| **NCUM** | Individual National NWP | 7.64 | 10.19 | +0.46 | 0.970 | 0.893 | — |
+| **Simple Multi-Model Average** | Baseline 1 (Equal 25% Weights) | 5.12 | 6.59 | +1.74 | 0.988 | 1.000 | — |
+| **Static Operational Blend** | Baseline 2 (Fixed Weights) | 5.45 | 6.94 | +1.48 | 0.986 | 1.000 | — |
+| **Adaptive Reliability Baseline**| Baseline 3 (Heuristic Rules) | 5.04 | 6.57 | +1.18 | 0.987 | 1.000 | — |
+| **Adaptive ML Meta-Model** | **VARUNA Learned ML (Target)** | **4.90** | **6.49** | **+0.27** | **0.987** | **1.000** | **0.040** |
 
-### Verified Skill Improvement:
-- **`+38.3%` MAE Reduction** over Simple Multi-Model Average (MAE reduced from 5.12 mm to 3.16 mm).
-- **`+27.0%` MAE Reduction** over the Heuristic Reliability Baseline (MAE reduced from 4.33 mm to 3.16 mm).
-- **Zero Temporal Leakage:** Training on Days 1–350; evaluation strictly on future Days 351–500.
+> **Audited Scientific Finding (`VERIFIED_SYNTHETIC`):**  
+> On 150 strictly held-out test days with causal lagged verification features, the **Adaptive ML Meta-Model** achieved an MAE of **4.90 mm**, delivering a **-35.9% error reduction over the best individual NWP model (NCUM 7.64 mm)** and a **+4.3% error reduction over the Simple Multi-Model Average (5.12 mm)**, while systematically driving bias down from `+1.74 mm` to `+0.27 mm`.  
+> *(Note: The previously reported 3.16 mm result was identified during scientific audit as containing same-day error leakage in the synthetic generator and has been formally deprecated to maintain scientific integrity).*
 
 ---
+
 
 ## 6. Strict Role Boundary for LLMs (Grok / Generative AI)
 

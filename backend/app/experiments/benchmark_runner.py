@@ -33,8 +33,10 @@ class BenchmarkExperimentRunner:
         regimes_list = ["NORMAL", "HEAVY_RAINFALL", "CONVECTIVE", "TRANSITION_UNCERTAIN"]
         regime_weights = [0.45, 0.25, 0.20, 0.10]
         current_regime = "NORMAL"
+        causal_ema_error = {"NCUM": 6.0, "GFS": 14.0, "WRF": 9.5, "AI_WEATHER": 8.5}
 
         for i in range(self.n_days):
+
             valid_time = base_time + timedelta(days=i)
             # Markov-chain regime transition for atmospheric persistence
             if np.random.rand() < 0.35:
@@ -79,12 +81,8 @@ class BenchmarkExperimentRunner:
                 "WRF": {"MAE": 11.4, "BIAS": -1.2},
                 "AI_WEATHER": {"MAE": 11.8, "BIAS": -2.8}
             }
-            recent = {
-                "NCUM": round(abs(err_ncum) * 0.4, 1),
-                "GFS": round(abs(err_gfs) * 0.5, 1),
-                "WRF": round(abs(err_wrf) * 0.4, 1),
-                "AI_WEATHER": round(abs(err_ai) * 0.4, 1)
-            }
+            # STRICT CAUSALITY: Feature vector on day i strictly reflects verified historical errors from day < i
+            recent = {m: round(causal_ema_error[m], 1) for m in SUPPORTED_MODELS}
 
             dataset.append({
                 "day_index": i + 1,
@@ -98,7 +96,13 @@ class BenchmarkExperimentRunner:
                 "recent_errors": recent
             })
 
+            # Verification update occurs AFTER forecast cycle: updates EMA for future cycles (alpha=0.20)
+            for m in SUPPORTED_MODELS:
+                current_err = abs(forecasts[m] - obs)
+                causal_ema_error[m] = 0.20 * current_err + 0.80 * causal_ema_error[m]
+
         return dataset
+
 
     def run_experiment(self) -> Dict[str, Any]:
         """

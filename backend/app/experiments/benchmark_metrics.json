@@ -1,0 +1,113 @@
+{
+  "benchmark_id": "EXP_TEMPORAL_MONSOON_BENCHMARK_2026",
+  "audited_at": "2026-09-26T15:58:00.991638+00:00",
+  "provenance_badge": "VERIFIED_SYNTHETIC_BENCHMARK",
+  "dataset_provenance": "synthetic_temporal_benchmark (Causal EMA, No Leakage)",
+  "training_samples": 350,
+  "unseen_test_samples": 150,
+  "results_table": [
+    {
+      "method": "NCUM",
+      "mae": 7.64,
+      "rmse": 10.19,
+      "bias": 0.46,
+      "correlation": 0.97,
+      "pod": 0.962,
+      "far": 0.074,
+      "csi": 0.893,
+      "brier": null
+    },
+    {
+      "method": "GFS",
+      "mae": 11.72,
+      "rmse": 15.12,
+      "bias": 5.07,
+      "correlation": 0.949,
+      "pod": 0.962,
+      "far": 0.306,
+      "csi": 0.676,
+      "brier": null
+    },
+    {
+      "method": "WRF",
+      "mae": 11.24,
+      "rmse": 14.83,
+      "bias": 0.7,
+      "correlation": 0.932,
+      "pod": 0.846,
+      "far": 0.043,
+      "csi": 0.815,
+      "brier": null
+    },
+    {
+      "method": "AI_WEATHER",
+      "mae": 8.74,
+      "rmse": 11.69,
+      "bias": 0.73,
+      "correlation": 0.959,
+      "pod": 0.769,
+      "far": 0.091,
+      "csi": 0.714,
+      "brier": null
+    },
+    {
+      "method": "SIMPLE_AVERAGE",
+      "mae": 5.12,
+      "rmse": 6.59,
+      "bias": 1.74,
+      "correlation": 0.988,
+      "pod": 1.0,
+      "far": 0.0,
+      "csi": 1.0,
+      "brier": null
+    },
+    {
+      "method": "STATIC_BLEND",
+      "mae": 5.45,
+      "rmse": 6.94,
+      "bias": 1.48,
+      "correlation": 0.986,
+      "pod": 1.0,
+      "far": 0.0,
+      "csi": 1.0,
+      "brier": null
+    },
+    {
+      "method": "ADAPTIVE_RELIABILITY_BASELINE",
+      "mae": 5.04,
+      "rmse": 6.57,
+      "bias": 1.18,
+      "correlation": 0.987,
+      "pod": 1.0,
+      "far": 0.0,
+      "csi": 1.0,
+      "brier": null
+    },
+    {
+      "method": "ADAPTIVE_ML_META_MODEL",
+      "mae": 4.9,
+      "rmse": 6.49,
+      "bias": 0.27,
+      "correlation": 0.987,
+      "pod": 1.0,
+      "far": 0.0,
+      "csi": 1.0,
+      "brier": 0.0405
+    }
+  ],
+  "scientific_findings": {
+    "simple_average_mae": 5.12,
+    "adaptive_reliability_baseline_mae": 5.04,
+    "adaptive_ml_meta_model_mae": 4.9,
+    "ml_mae_reduction_vs_simple_average_pct": 4.3,
+    "ml_mae_reduction_vs_heuristic_baseline_pct": 2.78,
+    "conclusion": "On 150 unseen test days, Adaptive ML Meta-Model achieved an MAE of 4.90 mm, representing a +4.3% error reduction over Simple Average (5.12 mm) and +2.8% error reduction over the Heuristic Reliability Baseline (5.04 mm)."
+  },
+  "prior_reported_vs_reproduced": {
+    "prior_reported_ml_mae": "3.16 mm (Derived with same-day error leakage)",
+    "prior_reported_gain": "+38.3% vs Simple Average",
+    "audited_reproduced_ml_mae": "4.90 mm (Strictly Causal, No Leakage)",
+    "audited_reproduced_gain": "+4.30% vs Simple Average",
+    "scientific_integrity_note": "The prior 38.3% claim was influenced by same-day error leakage in the synthetic generator and must NOT be presented as real-world forecast skill in SIH deliverables."
+  }
+}
