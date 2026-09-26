@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: sih26081-forecast-intelligence-api
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: PYTHONPATH
+        value: backend
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: varuna-db
+          property: connectionString
+      - key: DEFAULT_DATA_PROVENANCE
+        value: synthetic_demo
+
+databases:
+  - name: varuna-db
+    databaseName: varunadb
+    user: varuna_user
+    plan: free
