@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Query
 from app.verification.baselines import compare_fusion_baselines
+from app.experiments.benchmark_runner import benchmark_runner
 
 router = APIRouter(prefix="/verification", tags=["Forecast Verification & Benchmarks"])
 
@@ -60,3 +61,17 @@ def get_baseline_comparison(
         "adaptive_advantage_mae_reduction_pct": comp["adaptive_advantage_mae_reduction_pct"],
         "data_provenance": "synthetic_benchmark_evaluation"
     }
+
+@router.get("/experiment")
+def get_temporal_split_experiment():
+    """
+    Rigorous scientific benchmark evaluating 5 paradigms on a strictly unseen chronological test set:
+    1. Individual Models (NCUM, GFS, WRF, AI)
+    2. Simple Multi-Model Average
+    3. Static Operational Blend
+    4. Adaptive Reliability Baseline (Heuristic Formula)
+    5. Adaptive ML Meta-Model (Learned Gradient Boosting + Softmax Gating)
+    
+    Guarantees: Zero temporal data leakage (70% train / 30% unseen future test).
+    """
+    return benchmark_runner.run_experiment()

@@ -8,6 +8,7 @@ from app.intelligence.trust_model import compute_adaptive_weights
 from app.intelligence.fusion import perform_forecast_fusion
 from app.intelligence.uncertainty import compute_uncertainty_and_confidence
 from app.intelligence.explainability import generate_forecast_explanation, compute_what_changed
+from app.intelligence.ml_trust_model import ml_trust_model
 
 class ScenarioGenerator:
     def __init__(self):
@@ -78,19 +79,36 @@ class ScenarioGenerator:
         # 3. Disagreement Engine
         disagreement = calculate_disagreement(forecasts, variable=context["variable"])
 
-        # 4. Adaptive Trust AI
-        weights = compute_adaptive_weights(
+        # 4. Adaptive Trust Engines (Both Heuristic Baseline & Supervised ML Meta-Model)
+        heuristic_weights = compute_adaptive_weights(
             model_forecasts=forecasts,
             historical_skills=hist_skills,
             recent_errors=recent_errs,
             context=context,
             disagreement_info=disagreement
         )
+        
+        ml_weights = ml_trust_model.predict_weights(
+            forecasts=forecasts,
+            historical_skills=hist_skills,
+            recent_errors=recent_errs,
+            context=context
+        )
+        
+        selected_strategy = custom_context.get("strategy", "ADAPTIVE_ML") if custom_context else "ADAPTIVE_ML"
+        weights = ml_weights if selected_strategy == "ADAPTIVE_ML" else heuristic_weights
 
         # 5. Forecast Fusion
         fusion_out = perform_forecast_fusion(
             model_forecasts=forecasts,
             weights=weights,
+            variable=context["variable"]
+        )
+        
+        # Also compute heuristic baseline value
+        heuristic_fusion = perform_forecast_fusion(
+            model_forecasts=forecasts,
+            weights=heuristic_weights,
             variable=context["variable"]
         )
 
@@ -147,8 +165,10 @@ class ScenarioGenerator:
             "baselines": {
                 "simple_average": fusion_out["simple_average_value"],
                 "static_blend": fusion_out["static_blend_value"],
-                "adaptive_blend": fusion_out["fused_value"]
+                "adaptive_reliability_baseline": heuristic_fusion["fused_value"],
+                "adaptive_ml_blend": fusion_out["fused_value"]
             },
+            "strategy": selected_strategy,
             "weights": weights,
             "model_forecasts": forecasts,
             "disagreement": disagreement,

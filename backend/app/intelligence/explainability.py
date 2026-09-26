@@ -1,5 +1,6 @@
 from typing import Dict, List, Any
 from datetime import datetime, timezone
+from app.services.llm_provider import llm_service
 
 def generate_forecast_explanation(
     fused_value: float,
@@ -43,14 +44,22 @@ def generate_forecast_explanation(
     else:
         positive_factors.append(f"Model convergence is {disagreement_info['disagreement_level']}, yielding consistent solution consensus.")
 
-    # Synthesize plain, technically rigorous explanation
-    summary_text = (
-        f"For {context.get('region_id')} at {lead_hours}h lead under {regime} regime, the adaptive engine blended forecasts "
-        f"into {fused_value} {'mm' if variable=='rainfall' else '°C' if variable=='temperature' else 'km/h'}. "
-        f"{dominant_id} carries the highest trust weight ({dominant_pct}%) owing to superior historical regime verification. "
-        f"Event probability is {uncertainty_info['probability']}% with {uncertainty_info['confidence']} confidence "
-        f"(disagreement level: {disagreement_info['disagreement_level']})."
-    )
+    # Synthesize plain, technically rigorous explanation using LLM provider (Grok / Deterministic template fallback)
+    computed_facts = {
+        "region_id": context.get("region_id"),
+        "variable": variable,
+        "lead_hours": lead_hours,
+        "weather_regime": regime,
+        "fused_value": fused_value,
+        "dominant_model": dominant_id,
+        "dominant_weight_pct": dominant_pct,
+        "probability": uncertainty_info["probability"],
+        "confidence": uncertainty_info["confidence"],
+        "disagreement_level": disagreement_info["disagreement_level"],
+        "positive_factors": positive_factors,
+        "negative_factors": negative_factors
+    }
+    summary_text = llm_service.generate_briefing(computed_facts)
 
     return {
         "fusion_result_id": "",

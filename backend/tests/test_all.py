@@ -188,3 +188,71 @@ def test_dashboard_summary_endpoint(client):
     assert "uncertainty" in data
     assert "explanation" in data
     assert "data_health" in data
+
+# 11. Strict Temporal Split Scientific Benchmark Experiment Test
+def test_temporal_split_benchmark_experiment(client):
+    res = client.get("/api/verification/experiment")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["experiment_id"] == "EXP_TEMPORAL_MONSOON_BENCHMARK_2026"
+    assert data["unseen_test_samples"] > 0
+    assert "split_ratio" in data
+    
+    methods = [row["method"] for row in data["results_table"]]
+    assert "SIMPLE_AVERAGE" in methods
+    assert "STATIC_BLEND" in methods
+    assert "ADAPTIVE_RELIABILITY_BASELINE" in methods
+    assert "ADAPTIVE_ML_META_MODEL" in methods
+    
+    findings = data["scientific_findings"]
+    assert "ml_mae_reduction_vs_simple_average_pct" in findings
+    assert findings["adaptive_ml_meta_model_mae"] < findings["simple_average_mae"]
+
+# 12. Supervised ML Meta-Model Simplex & Constraint Invariant Test
+def test_ml_trust_model_simplex_invariants():
+    from app.intelligence.ml_trust_model import ml_trust_model
+    forecasts = {"NCUM": 80.0, "WRF": 50.0, "GFS": 105.0, "AI_WEATHER": 65.0}
+    skills = {"NCUM": {"MAE": 9.0}, "WRF": {"MAE": 11.0}, "GFS": {"MAE": 20.0}, "AI_WEATHER": {"MAE": 12.0}}
+    recent = {"NCUM": 2.0, "WRF": 3.0, "GFS": 15.0, "AI_WEATHER": 4.0}
+    ctx = {"lead_hours": 48, "weather_regime": "HEAVY_RAINFALL", "season": "SW_MONSOON"}
+    
+    weights = ml_trust_model.predict_weights(forecasts, skills, recent, ctx)
+    active_weights = [w["weight"] for w in weights if w["status"] == "ACTIVE"]
+    
+    # 1. Non-negative weights
+    for w in active_weights:
+        assert w >= 0.0
+    # 2. Sum to 1.0 within numerical precision
+    assert pytest.approx(sum(active_weights), abs=1e-4) == 1.0
+
+# 13. Storage Provider Abstraction Test
+def test_storage_provider_local():
+    from app.services.storage import LocalStorageProvider
+    provider = LocalStorageProvider("./data/storage_test")
+    test_data = b"MOCK_METEOROLOGICAL_GRIB_OR_PARQUET_BINARY_PAYLOAD"
+    
+    saved_path = provider.save_bytes("test_cycle_00z.bin", test_data)
+    assert provider.exists("test_cycle_00z.bin")
+    retrieved = provider.get_bytes("test_cycle_00z.bin")
+    assert retrieved == test_data
+
+# 14. LLM Provider Fallback Test
+def test_llm_provider_deterministic_fallback():
+    from app.services.llm_provider import DeterministicTemplateProvider
+    provider = DeterministicTemplateProvider()
+    briefing = provider.generate_briefing({
+        "region_id": "IN_TELANGANA_HYDERABAD",
+        "variable": "rainfall",
+        "lead_hours": 48,
+        "fused_value": 72.5,
+        "dominant_model": "NCUM",
+        "dominant_weight_pct": 42.0,
+        "probability": 75.0,
+        "confidence": "MEDIUM",
+        "disagreement_level": "HIGH",
+        "weather_regime": "HEAVY_RAINFALL"
+    })
+    assert "72.5 mm" in briefing
+    assert "NCUM" in briefing
+    assert "MEDIUM" in briefing
+

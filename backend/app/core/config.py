@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     HIGH_TEMP_THRESHOLD_C: float = 40.0         # Heatwave threshold standard
     HIGH_WIND_THRESHOLD_KMH: float = 50.0       # Gale/squall threshold
     
+    # LLM / XAI Briefing Integration (Grok / Local template fallback)
+    XAI_API_KEY: str = os.getenv("XAI_API_KEY", "")
+    XAI_MODEL: str = os.getenv("XAI_MODEL", "grok-beta")
+    
+    # Object Storage Provider (local | s3 | supabase)
+    STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "local")
+    STORAGE_LOCAL_PATH: str = os.getenv("STORAGE_LOCAL_PATH", "./data/storage")
+    STORAGE_ENDPOINT: str = os.getenv("STORAGE_ENDPOINT", "")
+    STORAGE_BUCKET: str = os.getenv("STORAGE_BUCKET", "varuna-nwp-grids")
+    STORAGE_ACCESS_KEY: str = os.getenv("STORAGE_ACCESS_KEY", "")
+    STORAGE_SECRET_KEY: str = os.getenv("STORAGE_SECRET_KEY", "")
+    
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
 settings = Settings()
