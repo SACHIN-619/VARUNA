@@ -1,7 +1,14 @@
-from typing import Optional
-from fastapi import APIRouter, Query
+from typing import Optional, List
+from fastapi import APIRouter, Query, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
+from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+
+from app.core.database import get_db
+from app.models.experiment import ExperimentRun
 from app.verification.baselines import compare_fusion_baselines
 from app.experiments.benchmark_runner import benchmark_runner
+from app.services.data_pipeline import data_pipeline
 
 router = APIRouter(prefix="/verification", tags=["Forecast Verification & Benchmarks"])
 
@@ -63,7 +70,10 @@ def get_baseline_comparison(
     }
 
 @router.get("/experiment")
-def get_temporal_split_experiment():
+def get_temporal_split_experiment(
+    persist: bool = Query(False, description="Persist this experiment run to database"),
+    db: Session = Depends(get_db)
+):
     """
     Rigorous scientific benchmark evaluating 5 paradigms on a strictly unseen chronological test set:
     1. Individual Models (NCUM, GFS, WRF, AI)
@@ -73,5 +83,104 @@ def get_temporal_split_experiment():
     5. Adaptive ML Meta-Model (Learned Gradient Boosting + Softmax Gating)
     
     Guarantees: Zero temporal data leakage (70% train / 30% unseen future test).
+    Optionally persists the benchmark run to PostgreSQL / Neon.
     """
-    return benchmark_runner.run_experiment()
+    res = benchmark_runner.run_experiment()
+    
+    if persist:
+        run_record = ExperimentRun(
+            title=res["title"],
+            split_ratio=benchmark_runner.split_ratio,
+            train_samples=res["train_samples"],
+            unseen_test_samples=res["unseen_test_samples"],
+            variable="rainfall",
+            provenance=res["data_provenance"],
+            results_table=res["results_table"],
+            mae_reduction_vs_simple_avg_pct=res["scientific_findings"]["ml_mae_reduction_vs_simple_average_pct"],
+            mae_reduction_vs_heuristic_pct=res["scientific_findings"]["ml_mae_reduction_vs_heuristic_baseline_pct"],
+            scientific_summary=res["scientific_findings"],
+            markdown_report=res.get("markdown_report")
+        )
+        db.add(run_record)
+        db.commit()
+        db.refresh(run_record)
+        res["persisted_id"] = run_record.id
+
+    return res
+
+@router.get("/experiments")
+def list_saved_experiments(
+    limit: int = Query(20, description="Max runs to return"),
+    db: Session = Depends(get_db)
+):
+    """Lists saved empirical experiment runs from database."""
+    runs = db.query(ExperimentRun).order_by(ExperimentRun.executed_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": r.id,
+            "title": r.title,
+            "executed_at": r.executed_at.isoformat() if r.executed_at else None,
+            "variable": r.variable,
+            "train_samples": r.train_samples,
+            "unseen_test_samples": r.unseen_test_samples,
+            "mae_reduction_vs_simple_avg_pct": r.mae_reduction_vs_simple_avg_pct,
+            "mae_reduction_vs_heuristic_pct": r.mae_reduction_vs_heuristic_pct,
+            "provenance": r.provenance
+        }
+        for r in runs
+    ]
+
+@router.get("/experiments/{experiment_id}")
+def get_saved_experiment(experiment_id: str, db: Session = Depends(get_db)):
+    """Retrieves full details of a saved empirical benchmark run."""
+    run = db.query(ExperimentRun).filter(ExperimentRun.id == experiment_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    return {
+        "id": run.id,
+        "title": run.title,
+        "executed_at": run.executed_at.isoformat() if run.executed_at else None,
+        "split_ratio": run.split_ratio,
+        "train_samples": run.train_samples,
+        "unseen_test_samples": run.unseen_test_samples,
+        "variable": run.variable,
+        "provenance": run.provenance,
+        "results_table": run.results_table,
+        "mae_reduction_vs_simple_avg_pct": run.mae_reduction_vs_simple_avg_pct,
+        "mae_reduction_vs_heuristic_pct": run.mae_reduction_vs_heuristic_pct,
+        "scientific_summary": run.scientific_summary,
+        "has_markdown_report": run.markdown_report is not None
+    }
+
+@router.get("/experiments/{experiment_id}/report", response_class=PlainTextResponse)
+def get_experiment_report(experiment_id: str, db: Session = Depends(get_db)):
+    """Exports the complete reproducible scientific markdown report for an experiment."""
+    run = db.query(ExperimentRun).filter(ExperimentRun.id == experiment_id).first()
+    if not run or not run.markdown_report:
+        # Fallback to generating live report if not found in db
+        res = benchmark_runner.run_experiment()
+        return res["markdown_report"]
+    return run.markdown_report
+
+@router.post("/feedback-loop")
+def trigger_closed_loop_skill_update(
+    region_id: str = Query("IN_TELANGANA_HYDERABAD"),
+    variable: str = Query("rainfall"),
+    lead_hours: int = Query(48),
+    season: str = Query("SW_MONSOON"),
+    weather_regime: str = Query("HEAVY_RAINFALL"),
+    db: Session = Depends(get_db)
+):
+    """
+    Executes the closed-loop scientific feedback mechanism:
+    Aggregates verification records, updates model skill scores in database,
+    and updates adaptive reliability parameters for subsequent forecast cycles.
+    """
+    return data_pipeline.update_model_skills_from_history(
+        db=db,
+        region_id=region_id,
+        variable=variable,
+        lead_hours=lead_hours,
+        season=season,
+        weather_regime=weather_regime
+    )

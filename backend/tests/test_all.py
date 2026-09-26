@@ -256,3 +256,126 @@ def test_llm_provider_deterministic_fallback():
     assert "NCUM" in briefing
     assert "MEDIUM" in briefing
 
+# 15. Spatial Model-Weight Map GeoJSON & Lead-Time Responsiveness Test
+def test_spatial_model_weight_map_api(client):
+    # Test at 24h lead time
+    res_24 = client.get("/api/fusion/weight-map?variable=rainfall&lead_hours=24&season=SW_MONSOON&weather_regime=HEAVY_RAINFALL")
+    assert res_24.status_code == 200
+    map_24 = res_24.json()
+    assert map_24["type"] == "FeatureCollection"
+    assert len(map_24["features"]) == 14
+    
+    # Test at 72h lead time
+    res_72 = client.get("/api/fusion/weight-map?variable=rainfall&lead_hours=72&season=SW_MONSOON&weather_regime=HEAVY_RAINFALL")
+    assert res_72.status_code == 200
+    map_72 = res_72.json()
+
+    # Check invariants for every subdivision
+    for feat in map_24["features"]:
+        geom = feat["geometry"]
+        assert geom["type"] == "Polygon"
+        assert len(geom["coordinates"][0]) >= 4
+        
+        props = feat["properties"]
+        w = props["weights"]
+        assert pytest.approx(sum(w.values()), abs=1e-3) == 1.0
+        assert props["dominant_model"] in ["NCUM", "GFS", "WRF", "AI_WEATHER"]
+        assert props["dominant_weight"] >= 0.25
+
+    # Check lead-time dynamic transition in orographic terrain (Western Ghats)
+    feat_ghats_24 = next(f for f in map_24["features"] if f["id"] == "IN_WESTERN_GHATS_KERALA")
+    feat_ghats_72 = next(f for f in map_72["features"] if f["id"] == "IN_WESTERN_GHATS_KERALA")
+    # WRF mesoscale resolution is prioritized at 24h in steep orography over 72h
+    assert feat_ghats_24["properties"]["weights"]["WRF"] > feat_ghats_72["properties"]["weights"]["WRF"]
+
+# 16. Meteorological Subdivisions Catalog Test
+def test_subdivisions_catalog_endpoint(client):
+    res = client.get("/api/regions/subdivisions")
+    assert res.status_code == 200
+    subs = res.json()
+    assert len(subs) == 14
+    sub_ids = [s["id"] for s in subs]
+    assert "IN_WESTERN_GHATS_KERALA" in sub_ids
+    assert "IN_TELANGANA_DECCAN" in sub_ids
+    assert "IN_VIDARBHA_CENTRAL" in sub_ids
+
+# 17. Observation Provider Interface & Provenance Tags Test
+def test_observation_provider_provenance_and_schema():
+    from app.services.observation_provider import observation_registry
+    
+    imdaa = observation_registry.get("imdaa")
+    assert imdaa.provenance == "PUBLIC_IMDAA_REANALYSIS"
+    obs_imdaa = imdaa.get_latest_observation("IN_TELANGANA_HYDERABAD", "rainfall")
+    assert obs_imdaa.data_provenance == "PUBLIC_IMDAA_REANALYSIS"
+    assert obs_imdaa.observed_value >= 0.0
+
+    station = observation_registry.get("station")
+    assert station.provenance == "STATION_OBSERVATION"
+    obs_stn = station.get_latest_observation("IN_TELANGANA_HYDERABAD", "temperature")
+    assert obs_stn.data_provenance == "STATION_OBSERVATION"
+
+    synthetic = observation_registry.get("synthetic")
+    assert synthetic.provenance == "SYNTHETIC_STRESS_TEST"
+    obs_syn = synthetic.get_latest_observation("IN_TELANGANA_HYDERABAD", "rainfall")
+    assert obs_syn.data_provenance == "SYNTHETIC_STRESS_TEST"
+
+# 18. Closed-Loop Data Pipeline & Model Skill Recalibration Test
+def test_data_pipeline_cycle_ingest_and_skill_update():
+    from app.core.database import SessionLocal
+    from app.services.data_pipeline import data_pipeline
+    from datetime import datetime, timezone
+    
+    db = SessionLocal()
+    try:
+        # Ingest a cycle with ground truth
+        cycle_res = data_pipeline.ingest_and_verify_cycle(
+            db=db,
+            region_id="IN_TELANGANA_HYDERABAD",
+            variable="rainfall",
+            lead_hours=48,
+            model_forecasts={"NCUM": 75.0, "GFS": 98.0, "WRF": 65.0, "AI_WEATHER": 70.0},
+            fused_forecast=71.5,
+            valid_time=datetime.now(timezone.utc),
+            ground_truth=69.0
+        )
+        assert cycle_res["observation_value"] == 69.0
+        assert "VARUNA_FUSED" in cycle_res["forecast_errors"]
+        assert cycle_res["forecast_errors"]["NCUM"]["error"] == 6.0
+
+        # Trigger closed-loop skill update
+        update_res = data_pipeline.update_model_skills_from_history(
+            db=db,
+            region_id="IN_TELANGANA_HYDERABAD",
+            variable="rainfall",
+            lead_hours=48
+        )
+        assert update_res["status"] == "SUCCESS"
+        assert "NCUM" in update_res["updated_model_skills"]
+        assert update_res["updated_model_skills"]["NCUM"]["mae"] > 0.0
+    finally:
+        db.close()
+
+
+# 19. Experiment Persistence & Markdown Report Export Test
+def test_experiment_persistence_and_markdown_report(client):
+    # Run and persist benchmark experiment
+    res_run = client.get("/api/verification/experiment?persist=true")
+    assert res_run.status_code == 200
+    data_run = res_run.json()
+    assert "persisted_id" in data_run
+    exp_id = data_run["persisted_id"]
+
+    # List saved experiments
+    res_list = client.get("/api/verification/experiments")
+    assert res_list.status_code == 200
+    saved_ids = [e["id"] for e in res_list.json()]
+    assert exp_id in saved_ids
+
+    # Fetch report as markdown
+    res_report = client.get(f"/api/verification/experiments/{exp_id}/report")
+    assert res_report.status_code == 200
+    assert "# VARUNA Empirical Scientific Verification Report" in res_report.text
+    assert "SIH26081" in res_report.text
+    assert "Strict Temporal Split" in res_report.text
+
+

@@ -12,6 +12,28 @@ def list_regions(db: Session = Depends(get_db)):
     """Lists registered geographical grids and administrative regions."""
     return db.query(Region).all()
 
+@router.get("/subdivisions")
+def list_meteorological_subdivisions():
+    """
+    Returns the 14 standardized Indian meteorological subdivisions
+    with terrain, agro-climatic zones, centroids, and risk profiles.
+    """
+    from app.intelligence.spatial_weight_map import INDIAN_SUBDIVISIONS
+    return [
+        {
+            "id": s["id"],
+            "name": s["name"],
+            "state": s["state"],
+            "terrain": s["terrain"],
+            "climatic_zone": s["climatic_zone"],
+            "risk_profile": s["risk_profile"],
+            "centroid": s["centroid"],
+            "bbox": s["bbox"]
+        }
+        for s in INDIAN_SUBDIVISIONS
+    ]
+
+
 @router.get("/{region_id}/forecast")
 def get_region_forecast(
     region_id: str,

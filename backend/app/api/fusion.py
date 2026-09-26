@@ -99,3 +99,31 @@ def get_fusion_explanation(
         }
     )
     return res["explanation"]
+
+@router.get("/weight-map")
+def get_spatial_model_weight_map(
+    variable: str = Query("rainfall", description="Forecast variable: rainfall | temperature | wind_speed"),
+    lead_hours: int = Query(48, description="Forecast lead hours: 24 | 48 | 72"),
+    season: str = Query("SW_MONSOON", description="Season: SW_MONSOON | POST_MONSOON | PRE_MONSOON | WINTER"),
+    weather_regime: str = Query("HEAVY_RAINFALL", description="Atmospheric regime: NORMAL | HEAVY_RAINFALL | CONVECTIVE | TRANSITION_UNCERTAIN"),
+    model_focus: Optional[str] = Query(None, description="Optional target model e.g. WRF | NCUM | GFS | AI_WEATHER to focus weight distribution"),
+    strategy: str = Query("ADAPTIVE_ML", description="Blending strategy: ADAPTIVE_ML (Supervised ML Meta-Model) | ADAPTIVE_RELIABILITY (Heuristic Baseline)")
+):
+    """
+    SIH26081 Key Deliverable: Dynamic Spatial Model-Weight Map.
+    Returns GeoJSON FeatureCollection of 14 Indian meteorological subdivisions with:
+    - Subdivision boundary polygons (GeoJSON RFC 7946 compliant)
+    - Normalized model trust weights (w_i >= 0, sum(w_i) == 1.0)
+    - Dominant model per region & physical meteorological rationale
+    - Dynamic responsiveness to lead time changes (24h -> 48h -> 72h)
+    """
+    from app.intelligence.spatial_weight_map import generate_spatial_weight_map
+    return generate_spatial_weight_map(
+        variable=variable,
+        lead_hours=lead_hours,
+        season=season,
+        weather_regime=weather_regime,
+        model_focus=model_focus,
+        strategy=strategy
+    )
+

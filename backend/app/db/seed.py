@@ -7,6 +7,8 @@ from app.models import (
     ForecastCycle, ForecastValue
 )
 
+from app.intelligence.spatial_weight_map import INDIAN_SUBDIVISIONS
+
 REGIONS_DATA = [
     {
         "id": "IN_TELANGANA_HYDERABAD",
@@ -45,6 +47,24 @@ REGIONS_DATA = [
         "region_metadata": {"terrain": "Orography", "basin": "Kabini River", "risk_profile": "Landslide / Cloudburst"}
     }
 ]
+
+# Append the 14 national meteorological subdivisions
+for sub in INDIAN_SUBDIVISIONS:
+    if not any(r["id"] == sub["id"] for r in REGIONS_DATA):
+        REGIONS_DATA.append({
+            "id": sub["id"],
+            "name": sub["name"],
+            "state": sub["state"],
+            "country": "India",
+            "centroid": sub["centroid"],
+            "geometry": {"type": "Polygon", "coordinates": [sub["polygon"]]},
+            "region_metadata": {
+                "terrain": sub["terrain"],
+                "climatic_zone": sub["climatic_zone"],
+                "risk_profile": sub["risk_profile"]
+            }
+        })
+
 
 MODELS_DATA = [
     {

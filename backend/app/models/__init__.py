@@ -9,6 +9,7 @@ from app.models.verification import VerificationResult
 from app.models.extreme import ExtremeEvent
 from app.models.explanation import Explanation
 from app.models.audit import AuditLog
+from app.models.experiment import ExperimentRun
 
 __all__ = [
     "Base",
@@ -23,5 +24,7 @@ __all__ = [
     "VerificationResult",
     "ExtremeEvent",
     "Explanation",
-    "AuditLog"
+    "AuditLog",
+    "ExperimentRun"
 ]
+
