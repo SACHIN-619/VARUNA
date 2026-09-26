@@ -109,7 +109,7 @@ def compute_what_changed(
         "confidence_shift": f"{previous_fusion.get('confidence', 'HIGH')} -> {current_fusion.get('confidence', 'MEDIUM')}",
         "primary_driver": primary_driver,
         "model_shifts": {
-            m: round(current_fusion.get("model_forecasts", {}).get(m, 0.0) - previous_fusion.get("model_forecasts", {}).get(m, 0.0), 1)
+            m: round((current_fusion.get("model_forecasts", {}).get(m) or 0.0) - (previous_fusion.get("model_forecasts", {}).get(m) or 0.0), 1)
             for m in current_fusion.get("model_forecasts", {})
         }
     }
