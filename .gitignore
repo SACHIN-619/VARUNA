@@ -15,3 +15,6 @@ htmlcov/
 .DS_Store
 *.log
 data/storage_test/
+**/scratch_model/
+*.tmp
+
