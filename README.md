@@ -1,11 +1,13 @@
 # VARUNA: Adaptive Forecast Intelligence Platform
 ## SIH26081: Hybrid AI–NWP Multi-Model Forecast Blending System
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/framework-FastAPI-green.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-20%20passed-brightgreen.svg)]()
-[![Status](https://img.shields.io/badge/scientific--validation-verified-success.svg)]()
-[![License](https://img.shields.io/badge/license-Government--Ready-orange.svg)]()
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
+
+[![Tests](https://img.shields.io/badge/tests-20%20passed-brightgreen.svg)](https://github.com/SACHIN-619/VARUNA)
+[![Audit](https://img.shields.io/badge/scientific--audit-complete-success.svg)](./VARUNA_SCIENTIFIC_VALIDATION_REPORT.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 
 > **Ministry of Earth Sciences (MoES) | National Centre for Medium Range Weather Forecasting (NCMRWF)**  
 > **Problem Statement ID:** SIH26081 | **Theme:** Disaster Management | **Category:** Software
