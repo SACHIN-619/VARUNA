@@ -67,14 +67,16 @@ class ScenarioGenerator:
         recent_errs = scenario.get("recent_errors", {})
 
         # 2. Context Engine
-        ctx_in = custom_context or {
+        ctx_in = dict(custom_context) if custom_context else {
             "region_id": scenario["region_id"],
             "season": scenario["season"],
             "lead_hours": scenario["lead_hours"],
             "variable": scenario["variable"],
             "weather_regime": scenario["weather_regime"]
         }
+        selected_strategy = ctx_in.pop("strategy", "ADAPTIVE_ML")
         context = ContextEngine.build_context(**ctx_in)
+
 
         # 3. Disagreement Engine
         disagreement = calculate_disagreement(forecasts, variable=context["variable"])
