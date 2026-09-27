@@ -17,6 +17,30 @@ else:
     db_url = settings.DATABASE_URL
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    # Auto-detect installed PostgreSQL DBAPI drivers (psycopg v3 vs psycopg2)
+    try:
+        import psycopg  # noqa: F401
+        has_psycopg = True
+    except ImportError:
+        has_psycopg = False
+
+    try:
+        import psycopg2  # noqa: F401
+        has_psycopg2 = True
+    except ImportError:
+        has_psycopg2 = False
+
+    # Automatically adapt driver prefix if the requested one is not installed
+    if "postgresql+psycopg://" in db_url and not has_psycopg and has_psycopg2:
+        db_url = db_url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
+    elif "postgresql+psycopg2://" in db_url and not has_psycopg2 and has_psycopg:
+        db_url = db_url.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+    elif db_url.startswith("postgresql://") and "+psycopg" not in db_url:
+        # Default postgresql:// uses psycopg2 in SQLAlchemy 2.0; if missing, fallback to psycopg v3
+        if not has_psycopg2 and has_psycopg:
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
     engine = create_engine(
         db_url,
         pool_pre_ping=True,
