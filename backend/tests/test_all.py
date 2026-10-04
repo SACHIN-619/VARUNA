@@ -157,8 +157,12 @@ def test_verification_metrics():
 
 # 9. Failure Injection Endpoint Tests
 def test_failure_injection_runtime_controls(client):
+    # Shared demo state: unauthenticated callers are refused
+    assert client.post("/api/demo/inject-failure", json={"action": "reset_scenario"}).status_code == 401
+    tok = client.post("/api/auth/login", data={"username": "forecaster@ncmrwf.gov.in", "password": "varuna2026"}).json()["access_token"]
+    h = {"Authorization": f"Bearer {tok}"}
     # Inject model bias
-    res_bias = client.post("/api/demo/inject-failure", json={
+    res_bias = client.post("/api/demo/inject-failure", headers=h, json={
         "action": "simulate_model_bias",
         "model_id": "GFS",
         "bias_magnitude": 30.0
@@ -172,7 +176,7 @@ def test_failure_injection_runtime_controls(client):
     assert gfs_w["weight"] < 0.25
 
     # Reset scenario
-    res_reset = client.post("/api/demo/inject-failure", json={"action": "reset_scenario"})
+    res_reset = client.post("/api/demo/inject-failure", headers=h, json={"action": "reset_scenario"})
     assert res_reset.status_code == 200
     assert res_reset.json()["action"] == "reset_scenario"
 
