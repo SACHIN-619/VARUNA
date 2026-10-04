@@ -15,14 +15,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
 # Run test verification during build
-RUN pytest backend/tests/test_all.py -v
+# Tests always run on an isolated SQLite DB (see backend/tests/conftest.py)
+RUN pytest backend/tests -q
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--app-dir", "backend", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000}"]

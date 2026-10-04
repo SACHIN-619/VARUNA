@@ -18,3 +18,31 @@ data/storage_test/
 **/scratch_model/
 *.tmp
 
+
+# --- added by audit ---
+**/.env
+!**/.env.example
+*.db
+*.db-wal
+*.db-shm
+node_modules/
+frontend/dist/
+backend/data/storage/models/*.pkl
+data/storage/models/*.pkl
+improved_frontend/
+
+# demo recordings (large binaries)
+demo/*.mp4
+demo/*.webm
+
+# Synthetic datasets and temporary files
+data/synthetic/
+backend/data/synthetic/
+**/storage_test/
+data/varuna_forecast_intelligence_platform/
+varuna_forecast_intelligence_platform/
+varuna_feel3/
+pipeline_trace.json
+scratch.py
+test_endpoints.py
+

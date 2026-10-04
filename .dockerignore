@@ -1,0 +1,12 @@
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.env
+*.db
+*.db-*
+frontend/
+varuna_forecast_intelligence_platform/
+data/varuna_forecast_intelligence_platform/
+varuna_feel3/
+.git
