@@ -67,7 +67,7 @@ def get_region_forecast(
         "variable": variable,
         "lead_hours": lead_hours,
         "fused_forecast": res["fused_value"],
-        "unit": "mm" if variable == "rainfall" else "C" if variable == "temperature" else "km/h",
+        "unit": "mm" if variable == "rainfall" else "°C" if variable == "temperature" else "m/s",
         "confidence": res["uncertainty"]["confidence"],
         "disagreement": res["disagreement"]["disagreement_level"],
         "weights": res["weights"],

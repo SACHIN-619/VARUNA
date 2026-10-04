@@ -1,4 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.core.auth import require_permission
+from app.core.database import get_db
+from app.models.user import User
+from app.services.audit_service import record as audit
 from app.demo.scenario_generator import scenario_generator
 from app.intelligence.failure_memory import failure_memory
 from app.schemas.all_schemas import FailureInjectionRequest
@@ -11,7 +16,7 @@ def list_scenarios():
     return scenario_generator.list_scenarios()
 
 @router.post("/load-scenario/{scenario_id}")
-def load_scenario(scenario_id: str):
+def load_scenario(scenario_id: str, db: Session = Depends(get_db), user: User = Depends(require_permission("demo:inject"))):
     """Loads a specific scenario and resets previous runtime failure overrides."""
     failure_memory.reset()
     success = scenario_generator.set_active_scenario(scenario_id)
@@ -24,7 +29,8 @@ def load_scenario(scenario_id: str):
     }
 
 @router.post("/inject-failure")
-def inject_failure(req: FailureInjectionRequest):
+def inject_failure(req: FailureInjectionRequest, db: Session = Depends(get_db),
+                   user: User = Depends(require_permission("demo:inject"))):
     """
     Simulates operational failure modes:
     - simulate_model_bias: GFS or target model develops large error drift
@@ -51,6 +57,8 @@ def inject_failure(req: FailureInjectionRequest):
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action '{req.action}'.")
 
+    # Simulation changes shared demo state for every viewer: always authenticated and audited
+    audit(db, "DEMO_INJECT", "DEMO_SCENARIO", target_model, actor=user, metadata={"action": action, "message": msg})
     # Re-evaluate pipeline to immediately return the impact
     state = scenario_generator.execute_pipeline()
     return {

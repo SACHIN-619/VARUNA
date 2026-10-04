@@ -54,9 +54,11 @@ Examples:
     map_p.add_argument("--json", action="store_true", help="Output raw GeoJSON FeatureCollection")
 
     # Command 3: benchmark
-    bench_p = subparsers.add_parser("benchmark", help="Execute 500-day strictly causal temporal benchmark")
+    bench_p = subparsers.add_parser("benchmark", help="Execute strictly causal temporal benchmark (Lane 1 Demo or Lane 2 Research)")
+    bench_p.add_argument("--lane", choices=["demo", "research"], default="demo", help="Lane selection: 'demo' (synthetic stress test) or 'research' (real open meteorological dataset)")
     bench_p.add_argument("--persist", action="store_true", help="Save experiment run to database")
     bench_p.add_argument("--split", type=float, default=0.70, help="Train/test split ratio (default: 0.70)")
+
 
     # Command 4: chaos (failure injection)
     chaos_p = subparsers.add_parser("chaos", help="Inject or reset runtime anomalies and faults")
@@ -71,7 +73,7 @@ Examples:
 
 def handle_blend(args):
     from app.demo.scenario_generator import scenario_generator
-    unit = "mm" if args.variable == "rainfall" else "C" if args.variable == "temperature" else "km/h"
+    unit = "mm" if args.variable == "rainfall" else "°C" if args.variable == "temperature" else "m/s"
 
     res = scenario_generator.execute_pipeline(
         custom_context={
@@ -151,9 +153,11 @@ def handle_weight_map(args):
     print("=" * 88 + "\n")
 
 def handle_benchmark(args):
-    from app.experiments.benchmark_runner import benchmark_runner
-    print("\n[Executing VARUNA Strictly Causal 500-Day Temporal Benchmark...]")
-    res = benchmark_runner.run_experiment()
+    from app.experiments.benchmark_runner import BenchmarkExperimentRunner
+    runner = BenchmarkExperimentRunner(lane=args.lane)
+    print(f"\n[Executing VARUNA {args.lane.upper()} Pipeline Benchmark (Provenance: {runner.provenance})...]")
+    res = runner.run_experiment()
+
 
     print("\n" + "=" * 90)
     print(f" VARUNA STRICTLY CAUSAL EMPIRICAL BENCHMARK ({res['experiment_id']})")

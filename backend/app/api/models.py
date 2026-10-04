@@ -27,22 +27,44 @@ def get_model_skills(
     region_id: Optional[str] = Query(None, description="Filter by region identifier"),
     lead_hours: Optional[int] = Query(None, description="Filter by lead time (24, 48, 72)"),
     weather_regime: Optional[str] = Query(None, description="Filter by regime (e.g. HEAVY_RAINFALL)"),
+    season: Optional[str] = Query(None, description="Filter by season (e.g. SW_MONSOON)"),
     db: Session = Depends(get_db)
 ):
     """
     Retrieve historical model skill benchmarks partitioned by
-    lead time, season, and synoptic weather regime.
+    region, lead time, season, and synoptic weather regime.
     """
-    query = db.query(ModelSkill).filter(ModelSkill.model_id == model_id.upper())
+    m_clean = model_id.upper()
+    query = db.query(ModelSkill).filter(ModelSkill.model_id == m_clean)
     if region_id:
         query = query.filter(ModelSkill.region_id == region_id)
     if lead_hours:
         query = query.filter(ModelSkill.lead_hours == lead_hours)
     if weather_regime:
         query = query.filter(ModelSkill.weather_regime == weather_regime.upper())
+    if season:
+        query = query.filter(ModelSkill.season == season.upper())
         
     results = query.all()
     if not results:
-        # Fallback to general skill if region-specific not yet seeded
-        results = db.query(ModelSkill).filter(ModelSkill.model_id == model_id.upper()).all()
+        # P0-10: Cold-start explicit prior instead of returning unconstrained cross-region records
+        default_mae = 9.2 if m_clean == "NCUM" else 18.5 if m_clean == "GFS" else 11.4 if m_clean == "WRF" else 11.8
+        return [
+            ModelSkillResponse(
+                id=f"bootstrap_{m_clean.lower()}",
+                model_id=m_clean,
+                region_id=region_id or "GLOBAL",
+                variable="rainfall",
+                lead_hours=lead_hours or 48,
+                season=season or "SW_MONSOON",
+                weather_regime=weather_regime or "NORMAL",
+                metric="MAE",
+                value=default_mae,
+                sample_count=0,
+                evaluation_period="BOOTSTRAP_PRIOR",
+                source_type="BOOTSTRAP_PRIOR",
+                quality_status="UNVALIDATED"
+            )
+        ]
     return results
+

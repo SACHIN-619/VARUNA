@@ -27,40 +27,28 @@ def get_extreme_weather_guidance(
         custom_context={"region_id": region_id, "variable": "wind_speed", "lead_hours": lead_hours}
     )
 
-    events = [
-        {
-            "event_type": "HEAVY_RAINFALL",
-            "variable": "rainfall",
-            "threshold": settings.HEAVY_RAINFALL_THRESHOLD_MM,
-            "unit": "mm",
-            "fused_value": res_rain["fused_value"],
-            "probability": res_rain["uncertainty"]["probability"],
-            "confidence": res_rain["uncertainty"]["confidence"],
-            "severity": res_rain["extreme_guidance"]["severity"],
-            "status": "ACTIVE_WATCH" if res_rain["fused_value"] >= settings.HEAVY_RAINFALL_THRESHOLD_MM else "NORMAL"
-        },
-        {
-            "event_type": "HEATWAVE",
-            "variable": "temperature",
-            "threshold": settings.HIGH_TEMP_THRESHOLD_C,
-            "unit": "C",
-            "fused_value": res_temp["fused_value"],
-            "probability": res_temp["uncertainty"]["probability"],
-            "confidence": res_temp["uncertainty"]["confidence"],
-            "severity": "ORANGE_ALERT" if res_temp["fused_value"] >= settings.HIGH_TEMP_THRESHOLD_C else "NORMAL",
-            "status": "ACTIVE_WATCH" if res_temp["fused_value"] >= settings.HIGH_TEMP_THRESHOLD_C else "NORMAL"
-        },
-        {
-            "event_type": "HIGH_WIND_GALE",
-            "variable": "wind_speed",
-            "threshold": settings.HIGH_WIND_THRESHOLD_KMH,
-            "unit": "km/h",
-            "fused_value": res_wind["fused_value"],
-            "probability": res_wind["uncertainty"]["probability"],
-            "confidence": res_wind["uncertainty"]["confidence"],
-            "severity": "ORANGE_ALERT" if res_wind["fused_value"] >= settings.HIGH_WIND_THRESHOLD_KMH else "NORMAL",
-            "status": "ACTIVE_WATCH" if res_wind["fused_value"] >= settings.HIGH_WIND_THRESHOLD_KMH else "NORMAL"
+    def _event(event_type, variable, res, threshold, unit):
+        sig = res.get("extreme_guidance", {}) or {}
+        return {
+            "event_type": event_type,
+            "variable": variable,
+            "threshold": threshold,
+            "unit": unit,
+            "fused_value": res["fused_value"],
+            "probability": res["uncertainty"]["probability"],
+            "is_calibrated_probability": res["uncertainty"].get("is_calibrated_probability", False),
+            "confidence": res["uncertainty"]["confidence"],
+            "category": sig.get("category", "NORMAL"),
+            "severity": sig.get("severity", "NORMAL"),
+            "alert_level": sig.get("alert_level", "GREEN"),
+            "status": "ACTIVE_WATCH" if sig.get("is_extreme") else "NORMAL",
         }
+
+    events = [
+        _event("HEAVY_RAINFALL", "rainfall", res_rain, settings.HEAVY_RAINFALL_THRESHOLD_MM, "mm"),
+        _event("HEATWAVE", "temperature", res_temp, settings.HIGH_TEMP_THRESHOLD_C, "°C"),
+        # Canonical wind unit is m/s (the previous code compared m/s values against a km/h threshold)
+        _event("HIGH_WIND_GALE", "wind_speed", res_wind, settings.HIGH_WIND_THRESHOLD_MS, "m/s"),
     ]
 
     return {
