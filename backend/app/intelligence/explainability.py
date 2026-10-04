@@ -26,18 +26,26 @@ def generate_forecast_explanation(
     positive_factors = []
     negative_factors = []
 
-    # Explain weights
-    for w in weights:
+    # Explain weights from the evidence actually used (no model-specific boilerplate)
+    evidence = context.get("skill_provenance", {}) or {}
+    skills = context.get("historical_skills", {}) or {}
+    label = {
+        "DATABASE_VERIFIED_HISTORY": "verified error history for this region",
+        "SEEDED_PRIOR": "a seeded prior (not yet verified here)",
+        "BOOTSTRAP_PRIOR": "a bootstrap prior (no verified history)",
+        "SCENARIO_PRIOR": "the synthetic scenario's prior",
+    }
+    for w in sorted(weights, key=lambda x: -x.get("weight", 0)):
         m_id = w["model_id"]
         pct = round(w["weight"] * 100.0, 1)
-        if m_id == "NCUM" and pct >= 30:
-            positive_factors.append(f"NCUM allocated {pct}% weight due to strong historical skill in Indian monsoon trough conditions (MAE: {w.get('historical_mae', 12.0)}).")
-        elif m_id == "WRF" and pct >= 25:
-            positive_factors.append(f"WRF received {pct}% weight leveraging mesoscale convective resolving resolution at {lead_hours}h lead.")
-        elif m_id == "GFS" and w.get("recent_bias", 0.0) > 10.0:
-            negative_factors.append(f"GFS weight reduced to {pct}% following detected operational wet bias drift (+{w['recent_bias']} mm).")
-        elif w.get("status") == "EXCLUDED":
-            negative_factors.append(f"{m_id} feed is unavailable or decommissioned; remaining models re-normalized.")
+        mae = (skills.get(m_id) or {}).get("MAE")
+        ev = label.get(evidence.get(m_id), "its prior skill estimate")
+        if w.get("status") in ("EXCLUDED", "DISABLED") or pct == 0:
+            negative_factors.append(f"{m_id} has no weight (missing, rejected by QC, or excluded); the others were re-normalised.")
+        elif pct >= 25:
+            positive_factors.append(f"{m_id}: {pct}% weight; historical MAE {mae if mae is not None else 'n/a'} from {ev}.")
+        else:
+            negative_factors.append(f"{m_id}: only {pct}% weight; historical MAE {mae if mae is not None else 'n/a'} from {ev}.")
 
     if disagreement_info["disagreement_level"] == "HIGH":
         negative_factors.append(f"High multi-model divergence (spread: {disagreement_info['std_dev']} { 'mm' if variable=='rainfall' else ''}) reduces consensus confidence to {uncertainty_info['confidence']}.")
@@ -53,6 +61,12 @@ def generate_forecast_explanation(
         "fused_value": fused_value,
         "dominant_model": dominant_id,
         "dominant_weight_pct": dominant_pct,
+        "dominant_evidence": {
+            "DATABASE_VERIFIED_HISTORY": "verified error history for this region",
+            "SEEDED_PRIOR": "a seeded prior that is not yet verified here",
+            "BOOTSTRAP_PRIOR": "a bootstrap prior (no verified history yet)",
+            "SCENARIO_PRIOR": "the synthetic scenario's prior skill",
+        }.get(evidence.get(dominant_id), "its prior skill estimate"),
         "probability": uncertainty_info["probability"],
         "confidence": uncertainty_info["confidence"],
         "disagreement_level": disagreement_info["disagreement_level"],
@@ -99,11 +113,13 @@ def compute_what_changed(
     # Shift drivers
     drivers = []
     if abs(val_diff) >= 15.0:
-        drivers.append(f"Significant intensity escalation of {val_diff:+.1f} mm driven by deepening convective synoptic signatures.")
-    if prob_diff > 20.0:
-        drivers.append(f"Heavy rainfall probability jumped {prob_diff:+.1f} percentage points across the forecast cycle.")
+        drivers.append(f"Significant intensity {'escalation' if val_diff > 0 else 'reduction'} of {val_diff:+.1f} versus the previous cycle.")
+    elif abs(val_diff) >= 1.0:
+        drivers.append(f"Fused value revised by {val_diff:+.1f} versus the previous cycle.")
+    if abs(prob_diff) > 10.0:
+        drivers.append(f"Threshold-exceedance indicator moved {prob_diff:+.1f} percentage points across the forecast cycle.")
     if prev_disagree != curr_disagree:
-        drivers.append(f"Model spread shifted from {prev_disagree} to {curr_disagree}, reflecting incoming ensemble divergence.")
+        drivers.append(f"Model spread shifted from {prev_disagree} to {curr_disagree}.")
 
     primary_driver = " | ".join(drivers) if drivers else "Nominal cycle update with minor synoptic refinement."
 

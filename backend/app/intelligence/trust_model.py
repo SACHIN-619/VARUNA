@@ -1,10 +1,25 @@
-from typing import Dict, List, Any
+"""
+VARUNA Adaptive Trust Architecture (Level 1: Adaptive Reliability Baseline).
+SIH 2026 Problem Statement: SIH26081
+
+Computes dynamic trust weights w_i based on historical skill, causal recent error,
+synoptic weather regime, and forecast lead time.
+
+Guarantees:
+1. Simplex invariant: w_i >= 0.0, sum(w_i) == 1.0 (for active models)
+2. Graceful degradation: missing or failed models are rebalanced without crash
+3. Single remaining model returns status 'DEGRADED_SINGLE_SOURCE'
+4. Zero valid models returns status 'FAILED_NO_SOURCES'
+"""
+
+from typing import Dict, List, Any, Optional
 import numpy as np
 from app.intelligence.reliability import compute_model_reliability
 from app.intelligence.failure_memory import failure_memory
 
+
 def compute_adaptive_weights(
-    model_forecasts: Dict[str, float],
+    model_forecasts: Dict[str, Optional[float]],
     historical_skills: Dict[str, Dict[str, float]],
     recent_errors: Dict[str, float],
     context: Dict[str, Any],
@@ -12,11 +27,6 @@ def compute_adaptive_weights(
 ) -> List[Dict[str, Any]]:
     """
     Computes dynamic, adaptive trust weights across all forecast sources.
-    Guarantees:
-      1. All weights w_i >= 0.0
-      2. sum(w_i) == 1.0 (simplex constraint)
-      3. Missing or disabled models are gracefully excluded and weights re-normalized
-      4. Models with high recent error or historical regime weakness are penalized
     """
     raw_scores = {}
     reliability_metadata = {}
@@ -46,42 +56,64 @@ def compute_adaptive_weights(
         reliability_metadata[model_id] = rel
         raw_scores[model_id] = max(1e-4, rel["composite_reliability"])
 
-    # Simplex normalization
-    total_score = sum(raw_scores[m] for m in active_models)
-
     weights_list = []
-    if total_score > 0 and active_models:
-        for model_id in model_forecasts.keys():
-            if model_id in active_models:
-                w = raw_scores[model_id] / total_score
-                # Rounding with sum-preservation
-                status = "ACTIVE"
-            else:
-                w = 0.0
-                status = "EXCLUDED"
 
-            rel = reliability_metadata.get(model_id, {})
+    # Case 1: Zero active models -> Failure state
+    if not active_models:
+        for model_id in model_forecasts.keys():
             weights_list.append({
                 "model_id": model_id,
-                "weight": float(w),
+                "weight": 0.0,
                 "raw_forecast": model_forecasts.get(model_id),
                 "historical_mae": historical_skills.get(model_id, {}).get("MAE", 14.0),
                 "recent_bias": failure_memory.get_injected_bias(model_id),
-                "confidence_contribution": round(float(w * (1.0 - disagreement_info.get("disagreement_score", 0.0))), 3),
-                "status": status,
-                "notes": rel.get("notes", [])
+                "confidence_contribution": 0.0,
+                "status": "FAILED_NO_SOURCES",
+                "notes": ["All forecast sources are unavailable or deactivated. No fusion possible."]
             })
-    else:
-        # Fallback if no models are active
-        n = len(model_forecasts)
+        return weights_list
+
+    # Case 2: Exactly 1 active model -> Degraded single source
+    if len(active_models) == 1:
+        single_id = active_models[0]
         for model_id in model_forecasts.keys():
+            is_active = (model_id == single_id)
             weights_list.append({
                 "model_id": model_id,
-                "weight": 1.0 / n if n > 0 else 0.0,
+                "weight": 1.0 if is_active else 0.0,
                 "raw_forecast": model_forecasts.get(model_id),
-                "status": "FALLBACK_UNIFORM",
-                "notes": ["All models deactivated; uniform emergency fallback applied."]
+                "historical_mae": historical_skills.get(model_id, {}).get("MAE", 14.0),
+                "recent_bias": failure_memory.get_injected_bias(model_id),
+                "confidence_contribution": 0.25 if is_active else 0.0,
+                "status": "DEGRADED_SINGLE_SOURCE" if is_active else "EXCLUDED",
+                "notes": [
+                    "Single remaining model feed active; ensemble consensus and multi-model blend unavailable."
+                ] if is_active else ["Model feed unavailable."]
             })
+        return weights_list
+
+    # Case 3: Multiple active models -> Optimal adaptive simplex
+    total_score = sum(raw_scores[m] for m in active_models)
+
+    for model_id in model_forecasts.keys():
+        if model_id in active_models:
+            w = raw_scores[model_id] / total_score
+            status = "ACTIVE"
+        else:
+            w = 0.0
+            status = "EXCLUDED"
+
+        rel = reliability_metadata.get(model_id, {})
+        weights_list.append({
+            "model_id": model_id,
+            "weight": float(w),
+            "raw_forecast": model_forecasts.get(model_id),
+            "historical_mae": historical_skills.get(model_id, {}).get("MAE", 14.0),
+            "recent_bias": failure_memory.get_injected_bias(model_id),
+            "confidence_contribution": round(float(w * (1.0 - disagreement_info.get("disagreement_score", 0.0))), 3),
+            "status": status,
+            "notes": rel.get("notes", [])
+        })
 
     # Exact normalization enforcement: sum(w) == 1.0
     active_items = [item for item in weights_list if item["status"] == "ACTIVE"]
@@ -89,7 +121,6 @@ def compute_adaptive_weights(
         current_sum = sum(item["weight"] for item in active_items)
         for item in active_items:
             item["weight"] = round(item["weight"] / current_sum, 4)
-        # Fix minor rounding delta on largest weight
         diff = 1.0 - sum(item["weight"] for item in active_items)
         if abs(diff) > 1e-6:
             max_item = max(active_items, key=lambda x: x["weight"])

@@ -1,16 +1,64 @@
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone, timedelta
 from app.demo.scenarios import SCENARIOS
-from app.intelligence.context_engine import ContextEngine
-from app.intelligence.disagreement import calculate_disagreement
+from app.services.canonical_pipeline import canonical_pipeline
 from app.intelligence.failure_memory import failure_memory
-from app.intelligence.trust_model import compute_adaptive_weights
-from app.intelligence.fusion import perform_forecast_fusion
-from app.intelligence.uncertainty import compute_uncertainty_and_confidence
-from app.intelligence.explainability import generate_forecast_explanation, compute_what_changed
-from app.intelligence.ml_trust_model import ml_trust_model
+
+# Default (non-rainfall) demo feeds. Rainfall scenarios carry mm values only; re-using them
+# for temperature / wind produced physically impossible guidance (e.g. a 70 °C "heatwave").
+VARIABLE_DEMO_PROFILES: Dict[str, Dict[str, Any]] = {
+    "temperature": {
+        "forecasts": {"NCUM": 31.4, "GFS": 32.9, "WRF": 30.6, "AI_WEATHER": 31.1},
+        "historical_skills": {
+            "NCUM": {"MAE": 1.2, "BIAS": 0.2}, "GFS": {"MAE": 1.9, "BIAS": 0.9},
+            "WRF": {"MAE": 1.5, "BIAS": -0.4}, "AI_WEATHER": {"MAE": 1.4, "BIAS": -0.2},
+        },
+        "recent_errors": {"NCUM": 0.6, "GFS": 1.4, "WRF": 0.9, "AI_WEATHER": 0.8},
+    },
+    "wind_speed": {  # canonical unit: m/s
+        "forecasts": {"NCUM": 9.6, "GFS": 11.9, "WRF": 13.4, "AI_WEATHER": 9.1},
+        "historical_skills": {
+            "NCUM": {"MAE": 1.6, "BIAS": 0.3}, "GFS": {"MAE": 2.4, "BIAS": 1.1},
+            "WRF": {"MAE": 2.0, "BIAS": 0.8}, "AI_WEATHER": {"MAE": 1.8, "BIAS": -0.5},
+        },
+        "recent_errors": {"NCUM": 0.9, "GFS": 1.8, "WRF": 1.3, "AI_WEATHER": 1.1},
+    },
+}
+
+REFERENCE_BASE_RAINFALL_MM = 48.0  # Telangana / Deccan climatological anchor used by the scenarios
+
+
+def _region_rain_factor(region_id: Optional[str]) -> float:
+    """Scales demo rainfall by the subdivision's climatological base so the region selector is meaningful."""
+    if not region_id:
+        return 1.0
+    from app.services.harmonization import normalize_region_id
+    region_id = normalize_region_id(region_id)
+    try:
+        from app.intelligence.spatial_weight_map import INDIAN_SUBDIVISIONS
+        for sub in INDIAN_SUBDIVISIONS:
+            if sub["id"] == region_id:
+                return sub["physics_profile"]["base_rainfall"] / REFERENCE_BASE_RAINFALL_MM
+    except Exception:
+        pass
+    return 1.0
+
+
+def _apply_lead_spread(forecasts: Dict[str, Optional[float]], lead_hours: int) -> Dict[str, Optional[float]]:
+    """Inter-model spread grows with lead time (deterministic): deviations from the mean scale by +15%/24h beyond 48h."""
+    vals = [v for v in forecasts.values() if v is not None]
+    if len(vals) < 2:
+        return forecasts
+    mean = sum(vals) / len(vals)
+    k = max(0.55, 1.0 + 0.15 * (lead_hours - 48) / 24.0)
+    return {m: (None if v is None else round(max(0.0, mean + (v - mean) * k), 1)) for m, v in forecasts.items()}
+
 
 class ScenarioGenerator:
+    """
+    Demo Scenario Engine connected to the 14-stage Canonical Pipeline Orchestrator.
+    Executes real-time VARUNA forecast intelligence for interactive UI demonstrations.
+    """
+
     def __init__(self):
         self.current_scenario_id = "SCENARIO_2_SIGNATURE_HEAVY_RAINFALL"
 
@@ -39,160 +87,194 @@ class ScenarioGenerator:
         self,
         scenario_id: Optional[str] = None,
         custom_forecasts: Optional[Dict[str, float]] = None,
-        custom_context: Optional[Dict[str, Any]] = None
+        custom_context: Optional[Dict[str, Any]] = None,
+        _compute_diff: bool = True
     ) -> Dict[str, Any]:
         """
-        Executes the end-to-end scientific pipeline:
-        Harmonization -> Context -> Disagreement -> Trust AI -> Fusion -> Uncertainty -> XAI
+        Executes the canonical 14-stage VARUNA pipeline on scenario or custom forecast feeds.
+        Every context field supplied by the API (region, variable, lead, regime, season,
+        strategy) is honoured — previously regime/season/strategy were silently dropped.
         """
+        ctx = custom_context or {}
         sc_id = scenario_id or self.current_scenario_id
         scenario = self.get_scenario(sc_id)
 
-        # 1. Inputs & Harmonization
-        forecasts = custom_forecasts or scenario["forecasts"].copy()
-        
-        # Apply failure memory modifications
+        variable = (ctx.get("variable") or scenario.get("variable", "rainfall")).lower()
+        lead_hours = int(ctx.get("lead_hours") or scenario.get("lead_hours", 48))
+        weather_regime = (ctx.get("weather_regime") or scenario.get("weather_regime", "NORMAL")).upper()
+        season = (ctx.get("season") or scenario.get("season", "SW_MONSOON")).upper()
+        strategy = (ctx.get("strategy") or "ADAPTIVE_ML").upper()
+        region_id = ctx.get("region_id") or scenario.get("region_id", "IN_TELANGANA_HYDERABAD")
+
+        # 1. Inputs (variable-aware)
+        if custom_forecasts:
+            forecasts = dict(custom_forecasts)
+            hist_skills = scenario.get("historical_skills", {}) if variable == "rainfall" else VARIABLE_DEMO_PROFILES.get(variable, {}).get("historical_skills", {})
+            recent_errs = scenario.get("recent_errors", {}) if variable == "rainfall" else VARIABLE_DEMO_PROFILES.get(variable, {}).get("recent_errors", {})
+        elif variable == "rainfall":
+            f = _region_rain_factor(region_id)
+            forecasts = {m: (None if v is None else round(v * f, 1)) for m, v in scenario["forecasts"].items()}
+            forecasts = _apply_lead_spread(forecasts, lead_hours)
+            hist_skills = {m: {k: (round(x * f, 2) if isinstance(x, (int, float)) else x) for k, x in sk.items()}
+                           for m, sk in scenario.get("historical_skills", {}).items()}
+            recent_errs = {m: round(v * f, 2) for m, v in scenario.get("recent_errors", {}).items()}
+        else:
+            prof = VARIABLE_DEMO_PROFILES.get(variable, VARIABLE_DEMO_PROFILES["temperature"])
+            forecasts = _apply_lead_spread(dict(prof["forecasts"]), lead_hours)
+            hist_skills = prof["historical_skills"]
+            recent_errs = prof["recent_errors"]
+
+        # 2. Runtime failure-injection controls (bias / dropout / forced divergence)
         for m_id in list(forecasts.keys()):
             if failure_memory.is_model_disabled(m_id):
                 forecasts[m_id] = None
-            elif failure_memory.get_injected_bias(m_id) != 0.0 and forecasts[m_id] is not None:
+            elif forecasts[m_id] is not None and failure_memory.get_injected_bias(m_id) != 0.0:
                 forecasts[m_id] = round(forecasts[m_id] + failure_memory.get_injected_bias(m_id), 1)
-
-        # Forced disagreement injection if enabled
+        dm = (ctx.get("disabled_model") or "").upper()
+        if dm and dm in forecasts:
+            forecasts[dm] = None  # per-request dropout simulation (does not touch global state)
         if failure_memory.is_forced_disagreement():
-            forecasts["GFS"] = round(forecasts.get("GFS", 70.0) + 45.0, 1)
-            forecasts["WRF"] = round(max(2.0, forecasts.get("WRF", 50.0) - 35.0), 1)
+            # Documented behaviour: widen GFS upward and WRF downward
+            if forecasts.get("GFS") is not None:
+                forecasts["GFS"] = round(forecasts["GFS"] + (45.0 if variable == "rainfall" else 4.0), 1)
+            if forecasts.get("WRF") is not None:
+                forecasts["WRF"] = round(max(0.0, forecasts["WRF"] - (35.0 if variable == "rainfall" else 3.0)), 1)
 
-        hist_skills = scenario.get("historical_skills", {})
-        recent_errs = scenario.get("recent_errors", {})
+        package = canonical_pipeline.execute_pipeline(
+            db=None,
+            region_id=region_id,
+            variable=variable,
+            lead_hours=lead_hours,
+            raw_forecasts=forecasts,
+            custom_historical_skills=hist_skills,
+            custom_recent_errors=recent_errs,
+            run_id=f"demo_{sc_id.lower()}",
+            season=season,
+            weather_regime=weather_regime,
+            strategy=strategy,
+        )
 
-        # 2. Context Engine
-        ctx_in = dict(custom_context) if custom_context else {
-            "region_id": scenario["region_id"],
-            "season": scenario["season"],
-            "lead_hours": scenario["lead_hours"],
-            "variable": scenario["variable"],
-            "weather_regime": scenario["weather_regime"]
+        # Backward compatibility aliases for legacy callers and dashboard API endpoints
+        fused_val = package["fusion"].get("fused_value")
+        package["weather_regime"] = package["context"].get("weather_regime", weather_regime)
+        package["season"] = package["context"].get("season", season)
+        package["forecasts"] = package["inputs"]["raw_forecasts"]
+        package["model_forecasts"] = package["inputs"]["raw_forecasts"]
+        package["fused_value"] = fused_val
+        package["fused_forecast"] = fused_val
+        package["confidence_score"] = package["uncertainty"].get("confidence_score", 0.0)
+        package["uncertainty_score"] = round(1.0 - package["uncertainty"].get("confidence_score", 0.0), 3)
+        package["disagreement"] = package["weighted_disagreement"]
+        package["baselines"] = package["fusion"].get("baselines") or {
+            "simple_average": package["fusion"].get("simple_average_value"),
+            "static_blend": package["fusion"].get("static_blend_value"),
         }
-        selected_strategy = ctx_in.pop("strategy", "ADAPTIVE_ML")
-        context = ContextEngine.build_context(**ctx_in)
-
-
-        # 3. Disagreement Engine
-        disagreement = calculate_disagreement(forecasts, variable=context["variable"])
-
-        # 4. Adaptive Trust Engines (Both Heuristic Baseline & Supervised ML Meta-Model)
-        heuristic_weights = compute_adaptive_weights(
-            model_forecasts=forecasts,
-            historical_skills=hist_skills,
-            recent_errors=recent_errs,
-            context=context,
-            disagreement_info=disagreement
+        hist = package.get("historical_skill", {}).get("metrics", {})
+        ml_items = {}
+        heur_items = {}
+        package["weights"] = []
+        for m, w in package["trust_modeling"]["final_weights"].items():
+            raw = package["inputs"]["raw_forecasts"].get(m)
+            package["weights"].append({
+                "model_id": m,
+                "weight": float(w),
+                "status": "ACTIVE" if w > 0 else ("DISABLED" if raw is None else "EXCLUDED"),
+                # enriched so the UI no longer shows "Raw: N/A" / "MAE: N/A"
+                "raw_forecast": raw,
+                "historical_mae": hist.get(m, {}).get("MAE"),
+                "historical_bias": hist.get(m, {}).get("BIAS"),
+                "recent_error": (recent_errs or {}).get(m),
+                "heuristic_weight": package["trust_modeling"]["heuristic_trust"].get(m),
+                "ml_weight": package["trust_modeling"]["ml_trust"].get(m),
+            })
+        package["extreme_guidance"] = package.get("extreme_signal", {})
+        package["explanation"] = package.get("explainability", {})
+        package["what_changed"] = (
+            self._what_changed(scenario, package, sc_id, ctx, lead_hours) if _compute_diff
+            else {"summary": "diff not computed"}
         )
-        
-        ml_weights = ml_trust_model.predict_weights(
-            forecasts=forecasts,
-            historical_skills=hist_skills,
-            recent_errors=recent_errs,
-            context=context
-        )
-        
-        selected_strategy = custom_context.get("strategy", "ADAPTIVE_ML") if custom_context else "ADAPTIVE_ML"
-        weights = ml_weights if selected_strategy == "ADAPTIVE_ML" else heuristic_weights
-
-        # 5. Forecast Fusion
-        fusion_out = perform_forecast_fusion(
-            model_forecasts=forecasts,
-            weights=weights,
-            variable=context["variable"]
-        )
-        
-        # Also compute heuristic baseline value
-        heuristic_fusion = perform_forecast_fusion(
-            model_forecasts=forecasts,
-            weights=heuristic_weights,
-            variable=context["variable"]
-        )
-
-        # 6. Uncertainty & Confidence Engine
-        uncertainty = compute_uncertainty_and_confidence(
-            fused_value=fusion_out["fused_value"],
-            model_forecasts=forecasts,
-            weights=weights,
-            disagreement_info=disagreement,
-            context=context
-        )
-
-        # 7. Explainability Engine (Why this forecast?)
-        explanation = generate_forecast_explanation(
-            fused_value=fusion_out["fused_value"],
-            weights=weights,
-            disagreement_info=disagreement,
-            uncertainty_info=uncertainty,
-            context=context
-        )
-
-        # 8. What Changed Diagnostics
-        prev_cycle = scenario.get("previous_cycle", {
-            "fused_value": round(fusion_out["fused_value"] * 0.75, 1),
-            "probability": max(10.0, uncertainty["probability"] - 25.0),
-            "confidence": "HIGH",
-            "disagreement": "LOW",
-            "model_forecasts": {m: round((v or 50.0) * 0.8, 1) for m, v in forecasts.items()}
-        })
-        current_summary = {
-            "fused_value": fusion_out["fused_value"],
-            "probability": uncertainty["probability"],
-            "confidence": uncertainty["confidence"],
-            "disagreement": disagreement["disagreement_level"],
-            "model_forecasts": forecasts
+        active = len([v for v in forecasts.values() if v is not None])
+        missing = len([v for v in forecasts.values() if v is None])
+        package["data_health"] = {
+            "status": "HEALTHY" if missing == 0 else ("DEGRADED" if active >= 1 else "FAILED"),
+            "active_feeds": active,
+            "missing_feeds": missing,
         }
-        what_changed = compute_what_changed(current_summary, prev_cycle)
-
-        # Extreme Weather Indicator
-        is_extreme = fusion_out["fused_value"] >= uncertainty["threshold"]
-        severity = "RED_WARNING" if fusion_out["fused_value"] >= 115.5 else "ORANGE_ALERT" if is_extreme else "YELLOW_WATCH"
-
-        valid_time = datetime.now(timezone.utc) + timedelta(hours=context["lead_hours"])
-
-        return {
+        package["data_type"] = "SYNTHETIC_DEMO_SCENARIO"
+        package["scenario_metadata"] = {
             "scenario_id": sc_id,
-            "region_id": context["region_id"],
-            "variable": context["variable"],
-            "lead_hours": context["lead_hours"],
-            "season": context["season"],
-            "weather_regime": context["weather_regime"],
-            "valid_time": valid_time.isoformat(),
-            "fused_value": fusion_out["fused_value"],
-            "baselines": {
-                "simple_average": fusion_out["simple_average_value"],
-                "static_blend": fusion_out["static_blend_value"],
-                "adaptive_reliability_baseline": heuristic_fusion["fused_value"],
-                "adaptive_ml_blend": fusion_out["fused_value"]
-            },
-            "strategy": selected_strategy,
-            "weights": weights,
-            "model_forecasts": forecasts,
-            "disagreement": disagreement,
-            "uncertainty": uncertainty,
-            "explanation": explanation,
-            "what_changed": what_changed,
-            "extreme_guidance": {
-                "event_type": "HEAVY_RAINFALL" if context["variable"] == "rainfall" else "HEATWAVE",
-                "probability": uncertainty["probability"],
-                "severity": severity,
-                "confidence": uncertainty["confidence"],
-                "threshold": uncertainty["threshold"],
-                "is_active_alert": is_extreme
-            },
-            "data_type": scenario.get("data_type", "synthetic_demo"),
-            "data_health": {
-                "total_models": len(forecasts),
-                "active_models": fusion_out["active_models_count"],
-                "missing_models": [m for m, v in forecasts.items() if v is None],
-                "injected_bias": failure_memory._injected_bias,
-                "status": "OPERATIONAL" if fusion_out["active_models_count"] >= 3 else "DEGRADED_AVAILABILITY"
-            }
+            "title": scenario["title"],
+            "description": scenario["description"],
+            "data_provenance": "SYNTHETIC_DEMO_SCENARIO"
         }
+        return package
+
+    def _what_changed(self, scenario, package, sc_id, ctx, lead_hours) -> Dict[str, Any]:
+        """
+        Cycle diff for the SAME valid time: the previous cycle (issued 24 h earlier) forecast
+        this valid time at lead + 24 h. If the scenario carries an explicit previous cycle it is
+        used verbatim; otherwise the previous cycle is re-computed through the same pipeline,
+        so every delta shown in the UI is a computed number rather than hard-coded text.
+        """
+        from app.intelligence.explainability import compute_what_changed
+        current = {
+            "fused_value": package["fusion"].get("fused_value") or 0.0,
+            "probability": package["uncertainty"].get("probability", 0.0),
+            "disagreement": package["weighted_disagreement"].get("disagreement_level"),
+            "confidence": package["uncertainty"].get("confidence"),
+            "model_forecasts": package["inputs"]["raw_forecasts"],
+        }
+        prev_weights: Dict[str, float] = {}
+        prev = scenario.get("previous_cycle") if package.get("variable") == "rainfall" else None
+        if not prev:
+            prev_ctx = dict(ctx)
+            prev_ctx["lead_hours"] = min(lead_hours + 24, 72) if lead_hours < 72 else 72
+            prev_pkg = self.execute_pipeline(scenario_id=sc_id, custom_context=prev_ctx, _compute_diff=False)
+            if lead_hours >= 72:
+                # beyond the supported 72 h horizon: inflate spread one more step for the older cycle
+                prev_pkg = self.execute_pipeline(
+                    scenario_id=sc_id,
+                    custom_forecasts=_apply_lead_spread(dict(prev_pkg["inputs"]["raw_forecasts"]), 72),
+                    custom_context=prev_ctx, _compute_diff=False)
+            prev = {
+                "fused_value": prev_pkg["fusion"].get("fused_value") or 0.0,
+                "probability": prev_pkg["uncertainty"].get("probability", 0.0),
+                "disagreement": prev_pkg["weighted_disagreement"].get("disagreement_level"),
+                "confidence": prev_pkg["uncertainty"].get("confidence"),
+                "model_forecasts": prev_pkg["inputs"]["raw_forecasts"],
+            }
+            prev_weights = dict(prev_pkg["trust_modeling"]["final_weights"])
+        diff = compute_what_changed(current, prev)
+        cur_weights = package["trust_modeling"]["final_weights"]
+        weight_shifts = {m: round((cur_weights.get(m, 0.0) - prev_weights.get(m, 0.0)) * 100.0, 1)
+                         for m in cur_weights} if prev_weights else {}
+        timeline = []
+        for m, dw in sorted(weight_shifts.items(), key=lambda kv: -abs(kv[1])):
+            if abs(dw) >= 1.0:
+                timeline.append({
+                    "time": "THIS CYCLE", "type": "trust",
+                    "event": f"{m} trust {'increased' if dw > 0 else 'reduced'}",
+                    "detail": f"{prev_weights.get(m, 0.0) * 100:.0f}% → {cur_weights.get(m, 0.0) * 100:.0f}% ({dw:+.1f} pts)",
+                })
+        if diff["previous_value"] != diff["current_value"]:
+            timeline.append({"time": "THIS CYCLE", "type": "fusion", "event": "Fused forecast revised",
+                             "detail": f"{diff['previous_value']} → {diff['current_value']} ({diff['value_change']:+.1f})"})
+        if prev.get("confidence") != current.get("confidence"):
+            timeline.append({"time": "THIS CYCLE", "type": "confidence", "event": "Confidence re-graded",
+                             "detail": diff["confidence_shift"]})
+        diff.update({
+            "fused_delta": diff["value_change"],
+            "probability_shift": diff["probability_change_pct_points"],
+            "confidence_change": diff["confidence_shift"],
+            "disagreement_change": diff["disagreement_shift"],
+            "previous_weights": prev_weights,
+            "current_weights": cur_weights,
+            "weight_shifts_pct_points": weight_shifts,
+            "timeline": timeline,
+            "comparison_basis": "SCENARIO_PREVIOUS_CYCLE" if scenario.get("previous_cycle") and package.get("variable") == "rainfall"
+                                else "RECOMPUTED_PREVIOUS_CYCLE_SAME_VALID_TIME",
+        })
+        return diff
+
 
 scenario_generator = ScenarioGenerator()

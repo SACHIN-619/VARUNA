@@ -335,6 +335,11 @@ def compute_subdivision_weights(
     Applies orographic corrections, lead-time decay, synoptic physics, and supervised ML.
     """
     phys = subdivision["physics_profile"]
+    # Deterministic, reproducible synthetic feeds per (region, variable, lead, season, regime).
+    # The global np.random state previously made the national map change on every refresh.
+    import zlib
+    seed = zlib.crc32(f"{subdivision['id']}|{variable}|{lead_hours}|{season}|{weather_regime}".encode())
+    rng = np.random.default_rng(seed)
     base_val = phys["base_rainfall"] if variable == "rainfall" else 32.0 if variable == "temperature" else 35.0
 
     # Physics-informed forecast generation for this subdivision
@@ -343,19 +348,19 @@ def compute_subdivision_weights(
     # Model biases specific to region's terrain and lead time
     # WRF: High skill at 24h in orography; drops at 72h
     wrf_bias = phys["wrf_orographic_bonus_24h"] * (-1.5 if lead_hours == 24 else 2.5 * lead_factor)
-    f_wrf = round(max(0.0, base_val + np.random.normal(wrf_bias, 6.0 + (lead_hours - 24) * 0.2)), 1)
+    f_wrf = round(max(0.0, base_val + rng.normal(wrf_bias, 6.0 + (lead_hours - 24) * 0.2)), 1)
     
     # NCUM: Stable over monsoon trough; robust 4D-Var data assimilation
     ncum_bias = 0.5
-    f_ncum = round(max(0.0, base_val + np.random.normal(ncum_bias, 5.5 + lead_factor * 1.2)), 1)
+    f_ncum = round(max(0.0, base_val + rng.normal(ncum_bias, 5.5 + lead_factor * 1.2)), 1)
     
     # GFS: Wet bias over high orography during monsoon; good over plains at 48-72h
     gfs_bias = phys["gfs_bias_penalty"] * 18.0 if (variable == "rainfall" and weather_regime == "HEAVY_RAINFALL") else 2.0
-    f_gfs = round(max(0.0, base_val + np.random.normal(gfs_bias, 9.0 + lead_factor * 1.5)), 1)
+    f_gfs = round(max(0.0, base_val + rng.normal(gfs_bias, 9.0 + lead_factor * 1.5)), 1)
     
     # AI_WEATHER: Pattern consistency, strong at 48h-72h, slight peak dampening
     ai_bias = -1.5 if base_val > 70.0 else 0.2
-    f_ai = round(max(0.0, base_val + np.random.normal(ai_bias, 6.5 + lead_factor)), 1)
+    f_ai = round(max(0.0, base_val + rng.normal(ai_bias, 6.5 + lead_factor)), 1)
 
     forecasts = {"NCUM": f_ncum, "GFS": f_gfs, "WRF": f_wrf, "AI_WEATHER": f_ai}
 
@@ -387,10 +392,20 @@ def compute_subdivision_weights(
 
     if strategy == "ADAPTIVE_ML":
         weights_list = ml_trust_model.predict_weights(forecasts, skills, recent_errors, ctx)
+        weight_map = {w["model_id"]: w["weight"] for w in weights_list}
+    elif strategy == "HYBRID":
+        # Equal-weight ensemble of the learned meta-model and the physics-informed reliability
+        # engine. The bootstrap ML prior alone is weakly conditioned on terrain/lead for these
+        # synthetic subdivision feeds, so the map (labelled "physics heuristic" in the UI) uses both.
+        ml_w = {w["model_id"]: w["weight"] for w in ml_trust_model.predict_weights(forecasts, skills, recent_errors, ctx)}
+        h_w = {w["model_id"]: w["weight"] for w in compute_adaptive_weights(forecasts, skills, recent_errors, ctx, disagreement)}
+        raw = {m: 0.5 * ml_w.get(m, 0.0) + 0.5 * h_w.get(m, 0.0) for m in SUPPORTED_MODELS}
+        tot = sum(raw.values()) or 1.0
+        weight_map = {m: round(v / tot, 4) for m, v in raw.items()}
+        weight_map[max(weight_map, key=weight_map.get)] += round(1.0 - sum(weight_map.values()), 4)
     else:
         weights_list = compute_adaptive_weights(forecasts, skills, recent_errors, ctx, disagreement)
-
-    weight_map = {w["model_id"]: w["weight"] for w in weights_list}
+        weight_map = {w["model_id"]: w["weight"] for w in weights_list}
 
     # Dominant model computation
     dominant_model = max(weight_map, key=weight_map.get)
@@ -449,13 +464,31 @@ def compute_subdivision_weights(
         "why_dominant": why_dominant
     }
 
-def generate_spatial_weight_map(
+from functools import lru_cache
+
+
+def generate_spatial_weight_map(*args, **kwargs) -> Dict[str, Any]:
+    """Cached wrapper: the map is a pure function of its arguments (failure-injection state aside)."""
+    from app.intelligence.failure_memory import failure_memory
+    import copy
+    key = (args, tuple(sorted(kwargs.items())), tuple(sorted(failure_memory._injected_bias.items())),
+           tuple(sorted(failure_memory._disabled_models)))
+    return copy.deepcopy(_generate_spatial_weight_map_cached(key))
+
+
+@lru_cache(maxsize=128)
+def _generate_spatial_weight_map_cached(key) -> Dict[str, Any]:
+    args, kw, _b, _d = key
+    return _generate_spatial_weight_map(*args, **dict(kw))
+
+
+def _generate_spatial_weight_map(
     variable: str = "rainfall",
     lead_hours: int = 48,
     season: str = "SW_MONSOON",
     weather_regime: str = "HEAVY_RAINFALL",
     model_focus: Optional[str] = None,
-    strategy: str = "ADAPTIVE_ML"
+    strategy: str = "HYBRID"
 ) -> Dict[str, Any]:
     """
     Generates a full nationwide GeoJSON FeatureCollection and statistical summary
