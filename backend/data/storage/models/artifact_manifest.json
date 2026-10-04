@@ -1,0 +1,37 @@
+{
+  "version": "v2.0.0-bootstrap-causal",
+  "created_at": "2026-10-04T02:49:51.278691+00:00",
+  "models": [
+    "NCUM",
+    "GFS",
+    "WRF",
+    "AI_WEATHER"
+  ],
+  "feature_count": 22,
+  "feature_names": [
+    "forecast_NCUM",
+    "forecast_GFS",
+    "forecast_WRF",
+    "forecast_AI",
+    "multi_model_mean",
+    "multi_model_std",
+    "multi_model_range",
+    "historical_mae_NCUM",
+    "historical_mae_GFS",
+    "historical_mae_WRF",
+    "historical_mae_AI",
+    "historical_bias_NCUM",
+    "historical_bias_GFS",
+    "historical_bias_WRF",
+    "historical_bias_AI",
+    "recent_error_NCUM",
+    "recent_error_GFS",
+    "recent_error_WRF",
+    "recent_error_AI",
+    "lead_hours",
+    "regime_index",
+    "season_index"
+  ],
+  "sample_count": 3000,
+  "provenance": "SYNTHETIC_BOOTSTRAP_PRIOR"
+}

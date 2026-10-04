@@ -36,9 +36,15 @@ class LocalStorageProvider(StorageProvider):
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _resolve(self, relative_path: str) -> Path:
-        # Sanitize and prevent directory traversal
-        clean_path = os.path.normpath(relative_path).lstrip("/\\")
-        return self.base_dir / clean_path
+        # Strictly sanitize and prevent directory traversal
+        base = self.base_dir.resolve()
+        clean_parts = [p for p in Path(relative_path).parts if p not in ["..", ".", "/", "\\"]]
+        if not clean_parts:
+            return base / "default.bin"
+        target = (base / Path(*clean_parts)).resolve()
+        if not str(target).startswith(str(base)):
+            target = base / Path(relative_path).name
+        return target
 
     def save_bytes(self, relative_path: str, data: bytes) -> str:
         target = self._resolve(relative_path)
