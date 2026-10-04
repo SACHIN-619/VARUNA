@@ -10,6 +10,10 @@ from app.models.extreme import ExtremeEvent
 from app.models.explanation import Explanation
 from app.models.audit import AuditLog
 from app.models.experiment import ExperimentRun
+from app.models.dataset import DatasetRegistry
+from app.models.canonical_record import CanonicalWeatherEntity
+from app.models.notification import ForecastSnapshot, Notification
+from app.models.governance import ChangeProposal, SystemConfig
 
 __all__ = [
     "Base",
@@ -25,6 +29,12 @@ __all__ = [
     "ExtremeEvent",
     "Explanation",
     "AuditLog",
-    "ExperimentRun"
+    "ExperimentRun",
+    "DatasetRegistry",
+    "CanonicalWeatherEntity",
+    "ForecastSnapshot",
+    "Notification",
+    "ChangeProposal",
+    "SystemConfig"
 ]
 

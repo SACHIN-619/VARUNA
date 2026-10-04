@@ -28,7 +28,10 @@ class ModelSkillResponse(BaseModel):
     value: float
     sample_count: int
     evaluation_period: str
+    source_type: Optional[str] = "BOOTSTRAP_PRIOR"
+    quality_status: Optional[str] = "UNVALIDATED"
     model_config = ConfigDict(from_attributes=True)
+
 
 # --- Forecast Schemas ---
 class ForecastValueItem(BaseModel):

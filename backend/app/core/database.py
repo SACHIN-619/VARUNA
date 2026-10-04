@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
@@ -11,6 +11,15 @@ if settings.DATABASE_URL.startswith("sqlite"):
         connect_args=connect_args,
         echo=False
     )
+
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):
+        # WAL + NORMAL sync: ~10-50x faster bulk ingestion and concurrent reads during writes
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA foreign_keys=OFF")
+        cur.close()
 else:
     # PostgreSQL configuration with connection pooling
     # If postgres:// is provided (e.g. older Render urls), normalize to postgresql://
