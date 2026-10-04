@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* LIGHT MODE (Default - Reference System) */
+    --bg-surface: #faf8ff;
+    --text-surface: #131b2e;
+    --border-color: #cbd5e1;
+
+    --surface: #faf8ff;
+    --surface-bright: #ffffff;
+    --surface-dim: #d2d9f4;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #f3f5fc;
+    --surface-container: #eaedfb;
+    --surface-container-high: #e1e6f7;
+    --surface-container-highest: #d6ddf3;
+    --surface-deep: #f0f3fd;
+    --surface-panel: #ffffff;
+    --surface-card: #ffffff;
+    --surface-card-hover: #f1f4fd;
+    --surface-border: #e2e8f0;
+    --surface-border-bright: #cbd5e1;
+
+    --on-surface: #131b2e;
+    --on-surface-variant: #475569;
+    --on-surface-muted: #64748b;
+
+    --outline: #707881;
+    --outline-variant: #cbd5e1;
+
+    --primary-val: #007bb9;
+    --primary-hover-val: #006295;
+    --primary-dark-val: #004b73;
+    --primary-container-val: #007bb9;
+    --on-primary-val: #ffffff;
+    --on-primary-container-val: #ffffff;
+
+    --secondary-container-val: #39b8fd;
+    --on-secondary-container-val: #003753;
+
+    --tertiary-val: #4648d4;
+    --tertiary-container-val: #eef0ff;
+    --on-tertiary-container-val: #232292;
+    --tertiary-fixed-val: #e1e0ff;
+
+    --error-container-val: #ffe4e6;
+    --on-error-container-val: #9f1239;
+
+    --secondary-val: #006591;
+    --error-val: #ba1a1a;
+    --inverse-primary-val: #93ccff;
+  }
+
+  html.dark,
+  .dark {
+    /* DARK MODE (Switchable). `.dark` on any element creates a dark-theme island
+       (used for the always-dark radar/map canvas so its overlays stay readable). */
+    --bg-surface: #080d1a;
+    --text-surface: #f1f5f9;
+    --border-color: #1e293b;
+
+    --surface: #080d1a;
+    --surface-bright: #0c1427;
+    --surface-dim: #050812;
+    --surface-container-lowest: #0c1427;
+    --surface-container-low: #101a33;
+    --surface-container: #14203e;
+    --surface-container-high: #19274c;
+    --surface-container-highest: #20315c;
+    --surface-deep: #060a14;
+    --surface-panel: #101b33;
+    --surface-card: #14213d;
+    --surface-card-hover: #1a2b4f;
+    --surface-border: #1e293b;
+    --surface-border-bright: #2d447a;
+
+    --on-surface: #f1f5f9;
+    --on-surface-variant: #94a3b8;
+    --on-surface-muted: #64748b;
+
+    --outline: #475569;
+    --outline-variant: #1e293b;
+
+    --primary-val: #00e5ff;
+    --primary-hover-val: #38bdf8;
+    --primary-dark-val: #0284c7;
+    --primary-container-val: #0369a1;
+    --on-primary-val: #04101f;
+    --on-primary-container-val: #f0f9ff;
+
+    --secondary-container-val: #0284c7;
+    --on-secondary-container-val: #e0f2fe;
+
+    --tertiary-val: #818cf8;
+    --tertiary-container-val: #312e81;
+    --on-tertiary-container-val: #e0e7ff;
+    --tertiary-fixed-val: #312e81;
+
+    --error-container-val: #4c0519;
+    --on-error-container-val: #fda4af;
+
+    --secondary-val: #38bdf8;
+    --error-val: #f87171;
+    --inverse-primary-val: #006194;
+  }
+
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark; /* native form controls, <select> menus and scrollbars follow the theme */
+  }
+
+  body {
+    background-color: var(--bg-surface);
+    color: var(--text-surface);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+    padding: 0;
+    overscroll-behavior: none;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: rgba(15, 24, 44, 0.6);
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #253659;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3b5282;
+}
+
+/* Scientific Grid Background */
+.bg-met-grid {
+  background-size: 28px 28px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 97, 148, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 97, 148, 0.04) 1px, transparent 1px);
+}
+
+html.dark .bg-met-grid {
+  background-image: 
+    linear-gradient(to right, rgba(27, 41, 71, 0.4) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(27, 41, 71, 0.4) 1px, transparent 1px);
+}
+
+/* SVG India map interaction */
+.subdiv-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.subdiv-hover:hover {
+  filter: brightness(0.92);
+  stroke: #0284c7 !important;
+  stroke-width: 2.5px !important;
+}
+
+html.dark .subdiv-hover:hover {
+  filter: brightness(1.25) drop-shadow(0 0 8px rgba(0, 229, 255, 0.4));
+  stroke: #00e5ff !important;
+  stroke-width: 2.5px !important;
+}
+
+
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

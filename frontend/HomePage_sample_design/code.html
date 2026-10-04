@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+
+<html class="dark scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="web_standard" name="shell-type"/>
+<title>VARUNA — Adaptive Forecast Intelligence Platform</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-container": "#141b2c",
+            "background": "#070c18",
+            "surface": "#070c18",
+            "surface-dim": "#050811",
+            "surface-container-lowest": "#040710",
+            "surface-container-low": "#0d1424",
+            "surface-container-high": "#1c253b",
+            "surface-container-highest": "#283452",
+            "primary": "#dbfcff",
+            "primary-container": "#00f0ff",
+            "on-primary-container": "#00363a",
+            "secondary": "#46eee0",
+            "secondary-container": "#00d2c4",
+            "tertiary": "#faf3ff",
+            "tertiary-fixed-dim": "#d0bcff",
+            "outline": "#849495",
+            "outline-variant": "#2a374f",
+            "on-surface": "#e2e8f8",
+            "on-surface-variant": "#94a3b8",
+            "error": "#ff6b81",
+            "error-container": "#4a040b"
+          },
+          fontFamily: {
+            display: ["Space Grotesk", "sans-serif"],
+            body: ["Geist", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    @layer base {
+      html, body {
+        background-color: #070c18;
+        color: #e2e8f8;
+        overflow-x: hidden;
+      }
+    }
+    .glass-panel {
+      background: rgba(16, 24, 43, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 240, 255, 0.12);
+    }
+    .glass-panel-glow {
+      background: rgba(16, 24, 43, 0.75);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      box-shadow: 0 0 35px -10px rgba(0, 240, 255, 0.15);
+    }
+    .mesh-gradient {
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(0, 240, 255, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(70, 238, 224, 0.08) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(30, 64, 175, 0.08) 0px, transparent 60%);
+    }
+    .radar-grid {
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="font-body antialiased selection:bg-primary-container selection:text-black radar-grid">
+<!-- FLOATING GLASS HEADER -->
+<header class="fixed top-4 left-1/2 -translate-x-1/2 w-[94%] max-w-7xl z-50 transition-all duration-300">
+<div class="glass-panel rounded-full px-5 py-2.5 flex items-center justify-between shadow-2xl border border-primary-container/20">
+<!-- LOGO BRAND WITH TRANSPARENT SVG -->
+<a class="flex items-center gap-3 group" href="#">
+<img alt="VARUNA Brand Logo" class="h-7 w-auto object-contain transition-transform group-hover:scale-105 duration-200" src="https://lh3.googleusercontent.com/aida/AEtjO1W7TE2ZNMtydD3t9SGtMLVL2CRgkpTrH1iq2ur7dbIyYj1eQfN_vYbT6msaPKHlhynQYMKTK2dRz74J3xA6wRDjUm9wtv4zdvwuWOyuXIKgPObWeRwY5LHGUTFnkbsP9d7rzhxs6Z3Y7sVZ9wpQwv5tyVo3cA8SYetEHhncVlf1M_952sril-rryqg11j9wHtOdFfn5t_t2il1CN3_v6mtARuyoP1bghwX-gQQ4C7PXw_kKkslY0hB-iMU0"/>
+</a>
+<!-- MINIMALIST NAVIGATION -->
+<nav class="hidden md:flex items-center gap-8 font-mono text-xs uppercase tracking-widest text-on-surface-variant">
+<a class="hover:text-primary-container transition-colors" href="#divergence">The Divergence</a>
+<a class="hover:text-primary-container transition-colors" href="#architecture">Architecture</a>
+<a class="hover:text-primary-container transition-colors" href="#pipeline">14-Stage Core</a>
+<a class="hover:text-primary-container transition-colors" href="#sandbox">Live Sandbox</a>
+<a class="hover:text-primary-container transition-colors" href="#roles">Workspaces</a>
+</nav>
+<!-- CALL TO ACTION -->
+<div class="flex items-center gap-3">
+<span class="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-mono uppercase px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          MoES SIH26081
+        </span>
+<a class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary-container text-black font-mono text-xs font-bold uppercase tracking-wider hover:bg-white hover:shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all duration-300" href="#roles">
+<span>Enter Console</span>
+<span class="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+</a>
+</div>
+</div>
+</header>
+<main class="w-full">
+<!-- HERO SECTION -->
+<section class="relative min-h-[92vh] flex items-center justify-center pt-32 pb-24 px-6 overflow-hidden mesh-gradient">
+<!-- Glow ambient orbs -->
+<div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-primary-container/15 rounded-full blur-[140px] pointer-events-none"></div>
+<div class="absolute bottom-10 right-10 w-[300px] h-[300px] bg-secondary/10 rounded-full blur-[120px] pointer-events-none"></div>
+<div class="max-w-5xl mx-auto flex flex-col items-center text-center relative z-10">
+<!-- Live Scientific Status Badge -->
+<div class="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-surface-container-high/80 border border-primary-container/30 mb-8 backdrop-blur-md shadow-lg shadow-black/40">
+<span class="flex h-2 w-2 relative">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-container opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary-container"></span>
+</span>
+<span class="font-mono text-xs text-primary tracking-wide">ADAPTIVE FORECAST INTELLIGENCE • NCMRWF v2.4 KERNEL</span>
+</div>
+<!-- Punchy, Hero Headline -->
+<h1 class="font-display text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight uppercase leading-[1.08] text-white">
+          Weather models <span class="text-on-surface-variant font-light">see differently.</span><br/>
+<span class="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-primary-container">
+            VARUNA decides how much to trust each one.
+          </span>
+</h1>
+<!-- High-impact, concise subcopy -->
+<p class="mt-8 max-w-2xl text-base sm:text-lg text-on-surface-variant leading-relaxed font-body">
+          Existing numerical weather models disagree sharply across lead times, topography, and seasonal regimes. VARUNA evaluates model skill dynamically, blends disparate predictions with Bayesian precision, and surfaces honest empirical confidence.
+        </p>
+<!-- Primary Action Cluster -->
+<div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+<a class="px-7 py-3 rounded-full bg-primary-container text-black font-display font-bold text-sm tracking-wider uppercase flex items-center gap-2 shadow-[0_0_25px_rgba(0,240,255,0.3)] hover:shadow-[0_0_35px_rgba(0,240,255,0.5)] hover:scale-105 transition-all" href="#sandbox">
+<span class="material-symbols-outlined text-lg">tune</span>
+            Test Dynamic Sandbox
+          </a>
+<a class="px-7 py-3 rounded-full glass-panel hover:bg-surface-container-highest text-on-surface font-display font-medium text-sm tracking-wider uppercase flex items-center gap-2 transition-all" href="#divergence">
+<span class="material-symbols-outlined text-lg text-primary">analytics</span>
+            View Divergence Dilemma
+          </a>
+</div>
+<!-- Telemetry Floating Counters -->
+<div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl border-t border-outline-variant/40 pt-8">
+<div class="flex flex-col items-center">
+<span class="font-mono text-2xl font-bold text-primary">06:00 UTC</span>
+<span class="font-mono text-[11px] text-on-surface-variant tracking-wider uppercase mt-1">Cycle Lead T+48h</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-mono text-2xl font-bold text-secondary">14.8 mm</span>
+<span class="font-mono text-[11px] text-on-surface-variant tracking-wider uppercase mt-1">Spread Disparity</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-mono text-2xl font-bold text-primary">0.914</span>
+<span class="font-mono text-[11px] text-on-surface-variant tracking-wider uppercase mt-1">Brier Calibration</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-mono text-2xl font-bold text-secondary">4,682 AWS</span>
+<span class="font-mono text-[11px] text-on-surface-variant tracking-wider uppercase mt-1">Ground Truth Nodes</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 2: THE DILEMMA (4 MODELS, 1 CATCHMENT) -->
+<section class="py-24 sm:py-32 px-6 border-t border-outline-variant/30" id="divergence">
+<div class="max-w-6xl mx-auto flex flex-col gap-14">
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="max-w-xl">
+<div class="flex items-center gap-2 text-xs font-mono text-secondary uppercase tracking-widest font-semibold mb-2">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+              Operational Divergence
+            </div>
+<h2 class="font-display text-3xl sm:text-4xl font-bold uppercase text-white tracking-tight">
+              4 Models. 4 Signals. 1 Catchment Decision.
+            </h2>
+</div>
+<p class="text-sm text-on-surface-variant max-w-md font-body leading-relaxed">
+            Same catchment basin, same lead time (+48h). Unweighted arithmetic averaging yields 74mm, hiding catastrophic localized flash flood risks.
+          </p>
+</div>
+<!-- 4 Clean Glassmorphic Model Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+<!-- Model 1: NCUM -->
+<div class="glass-panel rounded-2xl p-6 relative overflow-hidden group hover:border-primary-container/60 transition-all duration-300">
+<div class="flex justify-between items-center mb-6">
+<span class="px-2.5 py-1 rounded bg-primary-container/10 border border-primary-container/30 text-primary font-mono text-xs font-bold">NCUM</span>
+<span class="font-mono text-[11px] text-on-surface-variant">12km Res</span>
+</div>
+<div class="flex items-baseline gap-2 mb-2">
+<span class="font-display text-5xl font-bold text-white tracking-tight">82</span>
+<span class="font-mono text-sm text-on-surface-variant">mm / 24h</span>
+</div>
+<span class="text-xs font-medium text-emerald-400 block mb-6">Strong Convective Inflow</span>
+<div class="pt-4 border-t border-outline-variant/30 flex justify-between items-center text-xs font-mono">
+<span class="text-on-surface-variant">Assigned Trust</span>
+<span class="text-primary-container font-bold text-sm">44%</span>
+</div>
+</div>
+<!-- Model 2: GFS -->
+<div class="glass-panel rounded-2xl p-6 relative overflow-hidden group hover:border-outline transition-all duration-300">
+<div class="flex justify-between items-center mb-6">
+<span class="px-2.5 py-1 rounded bg-surface-container-high border border-outline-variant text-on-surface-variant font-mono text-xs font-bold">NOAA GFS</span>
+<span class="font-mono text-[11px] text-on-surface-variant">0.25° Res</span>
+</div>
+<div class="flex items-baseline gap-2 mb-2">
+<span class="font-display text-5xl font-bold text-on-surface-variant tracking-tight">103</span>
+<span class="font-mono text-sm text-on-surface-variant">mm / 24h</span>
+</div>
+<span class="text-xs font-medium text-error block mb-6">Severe High Outlier Drift</span>
+<div class="pt-4 border-t border-outline-variant/30 flex justify-between items-center text-xs font-mono">
+<span class="text-on-surface-variant">Assigned Trust</span>
+<span class="text-outline font-bold text-sm">8%</span>
+</div>
+</div>
+<!-- Model 3: WRF -->
+<div class="glass-panel rounded-2xl p-6 relative overflow-hidden group hover:border-secondary/60 transition-all duration-300">
+<div class="flex justify-between items-center mb-6">
+<span class="px-2.5 py-1 rounded bg-secondary-container/10 border border-secondary/30 text-secondary font-mono text-xs font-bold">WRF-ARW</span>
+<span class="font-mono text-[11px] text-on-surface-variant">3km Meso</span>
+</div>
+<div class="flex items-baseline gap-2 mb-2">
+<span class="font-display text-5xl font-bold text-secondary tracking-tight">47</span>
+<span class="font-mono text-sm text-on-surface-variant">mm / 24h</span>
+</div>
+<span class="text-xs font-medium text-secondary block mb-6">Suppressed Core Dynamics</span>
+<div class="pt-4 border-t border-outline-variant/30 flex justify-between items-center text-xs font-mono">
+<span class="text-on-surface-variant">Assigned Trust</span>
+<span class="text-secondary font-bold text-sm">26%</span>
+</div>
+</div>
+<!-- Model 4: AI Weather -->
+<div class="glass-panel rounded-2xl p-6 relative overflow-hidden group hover:border-purple-400/60 transition-all duration-300">
+<div class="flex justify-between items-center mb-6">
+<span class="px-2.5 py-1 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 font-mono text-xs font-bold">AI Neural</span>
+<span class="font-mono text-[11px] text-on-surface-variant">GraphCast</span>
+</div>
+<div class="flex items-baseline gap-2 mb-2">
+<span class="font-display text-5xl font-bold text-purple-300 tracking-tight">64</span>
+<span class="font-mono text-sm text-on-surface-variant">mm / 24h</span>
+</div>
+<span class="text-xs font-medium text-purple-300/80 block mb-6">Smoothed Mean Profile</span>
+<div class="pt-4 border-t border-outline-variant/30 flex justify-between items-center text-xs font-mono">
+<span class="text-on-surface-variant">Assigned Trust</span>
+<span class="text-purple-300 font-bold text-sm">22%</span>
+</div>
+</div>
+</div>
+<!-- Adaptive Synthesis Hero Box -->
+<div class="glass-panel-glow rounded-2xl p-7 flex flex-col md:flex-row items-center justify-between gap-6">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 rounded-xl bg-primary-container/10 border border-primary-container/30 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary-container text-2xl">balance</span>
+</div>
+<div>
+<div class="flex items-center gap-3">
+<h3 class="font-display text-lg font-bold uppercase text-white tracking-wide">
+                  VARUNA Bayesian Posterior Synthesis
+                </h3>
+<span class="px-2 py-0.5 rounded bg-primary-container text-black font-mono text-[11px] font-bold">
+                  P50 = 71.4 mm
+                </span>
+</div>
+<p class="text-xs sm:text-sm text-on-surface-variant mt-1 font-body">
+                Rather than an ambiguous unweighted consensus, VARUNA derives confidence intervals: <strong class="text-primary">P10: 52mm</strong> to <strong class="text-primary">P90: 89mm</strong> with localized convective clamping.
+              </p>
+</div>
+</div>
+<span class="shrink-0 px-4 py-2 rounded-xl bg-surface-container-high border border-outline-variant font-mono text-xs text-secondary">
+            Softmax Adaptive Vector
+          </span>
+</div>
+</div>
+</section>
+<!-- SECTION 3: SYSTEM ARCHITECTURE & INTEGRATION -->
+<section class="py-24 sm:py-32 px-6 bg-surface-dim border-t border-outline-variant/30" id="architecture">
+<div class="max-w-6xl mx-auto flex flex-col gap-12">
+<!-- Header -->
+<div class="text-center max-w-2xl mx-auto">
+<span class="font-mono text-xs text-secondary uppercase tracking-widest font-semibold">Non-Invasive Augmentation</span>
+<h2 class="font-display text-3xl sm:text-4xl font-bold uppercase text-white tracking-tight mt-2">
+            We don't replace models. We unify their strengths.
+          </h2>
+<p class="text-sm text-on-surface-variant mt-4 font-body leading-relaxed">
+            VARUNA operates above deterministic and machine-learned forecast streams, providing a closed-loop intelligence layer.
+          </p>
+</div>
+<!-- Clean Interactive Tabs for Architecture Visuals -->
+<div class="flex justify-center gap-3">
+<button class="px-5 py-2 rounded-full font-mono text-xs uppercase tracking-wider font-bold transition-all bg-primary-container text-black shadow-lg shadow-cyan-500/20" id="tab-btn-sys">
+            System Ingestion Flow
+          </button>
+<button class="px-5 py-2 rounded-full font-mono text-xs uppercase tracking-wider font-semibold transition-all glass-panel text-on-surface-variant hover:text-white" id="tab-btn-loop">
+            Closed-Loop Learning Core
+          </button>
+</div>
+<!-- Architectural Image Display Container -->
+<div class="relative w-full rounded-2xl overflow-hidden glass-panel border border-outline-variant/50 p-2 sm:p-4 shadow-2xl">
+<div class="transition-opacity duration-300" id="arch-view-system">
+<img alt="VARUNA System Integration Architecture Diagram" class="w-full h-auto rounded-xl object-contain border border-outline-variant/30" src="https://lh3.googleusercontent.com/aida/AEtjO1WWgOb8_Kz4hnrPzFVi__0nPGmbinTHyCtnT2o16zU4T7BfsLQahgSZ-saJ3ftue95khMLrbUGNiNav11QTtCniMuDg00_ijCNOpmzD_r5kF-ZN8AN1GypjKcxxVNkyJ4IXTP9ocwPM5C3-cwrj43Ssseu_ceXrxvw6iBunt-nwkcR8b6mZrFzfzqReXSc-smmSG0zOUYKC5Ld3c9E_BoFZec7HdqtgNLou9fV8QukG3I2uiX953H-WOhLG"/>
+<div class="mt-4 px-3 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs font-mono text-on-surface-variant gap-2">
+<span class="text-primary flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                Ingestion → Dynamic Softmax Intelligence Layer → Actionable Decision Packages
+              </span>
+<span>Input: NCUM, GFS, WRF, GraphCast + IMD Doppler</span>
+</div>
+</div>
+<div class="hidden transition-opacity duration-300" id="arch-view-loop">
+<img alt="VARUNA Closed-Loop Skill Learning Core" class="w-full h-auto rounded-xl object-contain border border-outline-variant/30" src="https://lh3.googleusercontent.com/aida/AEtjO1WrBza8QGBQ2e4ZFCXZm8jLaHQtzIM8gpp7uWyjRdo5QBeUljkrve9WbgAJqCECAMww0XCcA6Klc5gE-BF9LgmGQAY9mY5SHtQ020hvyGgU-Bco5fgX3CpcRMr2c0dMbpPLwHfb8pCBi8a_N-_bfTnFaCk8dm19LQdMmALf7ercEkL91XJ4jjrqf6SCkDDyMOgx8-KWYNV5gYMTr8C8xZPEYbSfPEiMUThormKl1ciEE3HD8Mp_EXtQ85eu"/>
+<div class="mt-4 px-3 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs font-mono text-on-surface-variant gap-2">
+<span class="text-secondary flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                Observation Verification → Conditional Skill Matrix → Next Forecast Cycle Bias Clamping
+              </span>
+<span>30-Day Empirical Reliability Clamping</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 4: INTERACTIVE DYNAMIC TRUST SANDBOX -->
+<section class="py-24 sm:py-32 px-6 border-t border-outline-variant/30" id="sandbox">
+<div class="max-w-6xl mx-auto flex flex-col gap-12">
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<div class="flex items-center gap-2 text-xs font-mono text-primary-container uppercase tracking-widest font-semibold mb-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+              Real-Time Dynamic Softmax
+            </div>
+<h2 class="font-display text-3xl sm:text-4xl font-bold uppercase text-white tracking-tight">
+              Change The Context. Watch Trust Shift.
+            </h2>
+</div>
+<div class="font-mono text-xs text-on-surface-variant">
+            SYNTHETIC STRESS-TEST DEMO • LIVE ATTRIBUTION
+          </div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Controls Panel (Left) -->
+<div class="lg:col-span-5 flex flex-col gap-6 glass-panel rounded-2xl p-6">
+<!-- Regime Selector -->
+<div>
+<span class="font-mono text-[11px] text-on-surface-variant uppercase tracking-wider block mb-3 font-semibold">
+                01. Meteorological Regime
+              </span>
+<div class="grid grid-cols-1 gap-2" id="sandbox-regimes">
+<button class="active-regime w-full text-left px-4 py-2.5 rounded-xl font-mono text-xs bg-primary-container text-black font-bold flex items-center justify-between transition-all" data-regime="monsoon">
+<span>Heavy Convective Monsoon</span>
+<span class="material-symbols-outlined text-sm">thunderstorm</span>
+</button>
+<button class="w-full text-left px-4 py-2.5 rounded-xl font-mono text-xs bg-surface-container-high text-on-surface-variant hover:text-white font-medium flex items-center justify-between transition-all" data-regime="winter">
+<span>Dry Synoptic Winter Flow</span>
+<span class="material-symbols-outlined text-sm">air</span>
+</button>
+<button class="w-full text-left px-4 py-2.5 rounded-xl font-mono text-xs bg-surface-container-high text-on-surface-variant hover:text-white font-medium flex items-center justify-between transition-all" data-regime="cyclonic">
+<span>Bay of Bengal Depression</span>
+<span class="material-symbols-outlined text-sm">cyclone</span>
+</button>
+</div>
+</div>
+<!-- Lead Time Selector -->
+<div>
+<span class="font-mono text-[11px] text-on-surface-variant uppercase tracking-wider block mb-3 font-semibold">
+                02. Forecast Lead Horizon
+              </span>
+<div class="grid grid-cols-3 gap-2" id="sandbox-leads">
+<button class="py-2 rounded-xl font-mono text-xs bg-surface-container-high text-on-surface-variant hover:text-white font-semibold transition-all" data-lead="24">T+24h</button>
+<button class="active-lead py-2 rounded-xl font-mono text-xs bg-primary-container text-black font-bold transition-all" data-lead="48">T+48h</button>
+<button class="py-2 rounded-xl font-mono text-xs bg-surface-container-high text-on-surface-variant hover:text-white font-semibold transition-all" data-lead="72">T+72h</button>
+</div>
+</div>
+<!-- Dynamic Model Weights Display -->
+<div class="pt-4 border-t border-outline-variant/30 flex flex-col gap-4">
+<span class="font-mono text-[11px] text-primary uppercase tracking-wider font-semibold">
+                Dynamic Softmax Weight Allocations
+              </span>
+<!-- NCUM -->
+<div>
+<div class="flex justify-between text-xs font-mono mb-1">
+<span class="text-white font-bold">NCUM (UKMO Core)</span>
+<span class="text-primary font-bold" id="sb-ncum-val">44%</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full transition-all duration-500" id="sb-ncum-bar" style="width: 44%"></div>
+</div>
+</div>
+<!-- WRF -->
+<div>
+<div class="flex justify-between text-xs font-mono mb-1">
+<span class="text-white font-bold">WRF-ARW (3km Mesoscale)</span>
+<span class="text-secondary font-bold" id="sb-wrf-val">26%</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full transition-all duration-500" id="sb-wrf-bar" style="width: 26%"></div>
+</div>
+</div>
+<!-- AI -->
+<div>
+<div class="flex justify-between text-xs font-mono mb-1">
+<span class="text-white font-bold">AI Weather (GraphCast)</span>
+<span class="text-purple-300 font-bold" id="sb-ai-val">22%</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-purple-400 rounded-full transition-all duration-500" id="sb-ai-bar" style="width: 22%"></div>
+</div>
+</div>
+<!-- GFS -->
+<div>
+<div class="flex justify-between text-xs font-mono mb-1">
+<span class="text-white font-bold">NOAA GFS</span>
+<span class="text-outline font-bold" id="sb-gfs-val">8%</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-outline rounded-full transition-all duration-500" id="sb-gfs-bar" style="width: 8%"></div>
+</div>
+</div>
+</div>
+<!-- Rationale Brief -->
+<div class="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs font-body text-on-surface-variant leading-relaxed" id="sb-rationale">
+              Dominant NCUM anchor allocation driven by steep orographic skill over Western &amp; Deccan slopes. WRF slightly damped for localized afternoon thermodynamic overprediction.
+            </div>
+</div>
+<!-- Geospatial Map Visual Display (Right) -->
+<div class="lg:col-span-7 flex flex-col gap-4">
+<div class="glass-panel-glow rounded-2xl overflow-hidden p-2 sm:p-3 relative group">
+<img alt="VARUNA Geospatial India Model Trust Map" class="w-full h-auto rounded-xl object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1URpPtnpzGPFKin9tYpstQcY3bbrK9_2O5GYyGhrtt4mA5sMtT5cU4LVFn_P_TVr8JjASKs4l7k8CdGJoqvlRljcs9V44YPCwR2jQy1NtKhyomt_Be-ge7nOz0c1t_wQ4k4zi8qCRe3jWKkeW3SxY488mzSEl5GuZk-rnSXy204K_nfPHxAq-bjQUewRTFymUYrGpk06nV5hSRdjkuDDQz0pKuP8bZERhfoFvsBXu3S4np5s2PKmEgfaOmy"/>
+<div class="absolute bottom-5 left-5 right-5 glass-panel rounded-xl px-4 py-2.5 flex items-center justify-between text-xs font-mono border border-primary-container/30">
+<span class="text-white flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-ping"></span>
+                  Active Geographic Domain: South Asia 4km Standard Grid
+                </span>
+<span class="text-secondary font-bold">82% Skill Index</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 5: 14-STAGE CANONICAL PIPELINE (STREAMLINED GRID) -->
+<section class="py-24 sm:py-32 px-6 bg-surface-dim border-t border-outline-variant/30" id="pipeline">
+<div class="max-w-6xl mx-auto flex flex-col gap-12">
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<span class="font-mono text-xs text-secondary uppercase tracking-widest font-semibold">Deterministic to Probabilistic</span>
+<h2 class="font-display text-3xl sm:text-4xl font-bold uppercase text-white tracking-tight mt-2">
+              The 14-Stage Scientific Pipeline
+            </h2>
+</div>
+<span class="font-mono text-xs text-on-surface-variant">L0 RAW INGEST → L5 CAUSAL REASONING</span>
+</div>
+<!-- 14 Compact, Sleek Pills/Cards in Responsive Grid -->
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-secondary font-bold">01 • L0</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Raw Ingest</span>
+<span class="text-[11px] text-on-surface-variant font-body">4.5k AWS &amp; Radars</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">sensors</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-secondary font-bold">02 • L0</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Sanitization</span>
+<span class="text-[11px] text-on-surface-variant font-body">Spike QC Filters</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">verified</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-secondary font-bold">03 • L1</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Gridding</span>
+<span class="text-[11px] text-on-surface-variant font-body">4km Unified Mesh</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">grid_on</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-primary-container font-bold">04 • L2</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Context Engine</span>
+<span class="text-[11px] text-on-surface-variant font-body">CAPE &amp; Terrain</span>
+</div>
+<span class="material-symbols-outlined text-sm text-primary-container">terrain</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-primary-container font-bold">05 • L2</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Skill Matrix</span>
+<span class="text-[11px] text-on-surface-variant font-body">30-day Drift</span>
+</div>
+<span class="material-symbols-outlined text-sm text-primary-container">bar_chart</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors border-primary-container/40">
+<span class="font-mono text-[10px] text-primary-container font-bold">06 • L3</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-primary block">Dynamic Trust</span>
+<span class="text-[11px] text-on-surface-variant font-body">Softmax Weights</span>
+</div>
+<span class="material-symbols-outlined text-sm text-primary-container animate-pulse">tune</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-secondary font-bold">07 • L3</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Spread Scan</span>
+<span class="text-[11px] text-on-surface-variant font-body">Variance Detection</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">call_split</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors border-primary-container/40">
+<span class="font-mono text-[10px] text-primary-container font-bold">08 • L3</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-primary block">Fusion Engine</span>
+<span class="text-[11px] text-on-surface-variant font-body">Bayesian Synthesis</span>
+</div>
+<span class="material-symbols-outlined text-sm text-primary-container">merge_type</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-secondary font-bold">09 • L4</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Quantiles</span>
+<span class="text-[11px] text-on-surface-variant font-body">P10 - P50 - P90</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">stacked_line_chart</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-error transition-colors">
+<span class="font-mono text-[10px] text-error font-bold">10 • L4</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-error block">Hazard Alert</span>
+<span class="text-[11px] text-on-surface-variant font-body">Burst Thresholds</span>
+</div>
+<span class="material-symbols-outlined text-sm text-error">warning</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-secondary font-bold">11 • L5</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Explainability</span>
+<span class="text-[11px] text-on-surface-variant font-body">Causal Provenance</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">psychology</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-primary-container font-bold">12 • Out</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Intel Package</span>
+<span class="text-[11px] text-on-surface-variant font-body">Operational NetCDF</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">folder_zip</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-primary-container/60 transition-colors">
+<span class="font-mono text-[10px] text-secondary font-bold">13 • Ver</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-white block">Residuals</span>
+<span class="text-[11px] text-on-surface-variant font-body">CRPS &amp; Brier Score</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline">fact_check</span>
+</div>
+<div class="glass-panel p-3.5 rounded-xl flex flex-col justify-between hover:border-secondary transition-colors border-secondary/40">
+<span class="font-mono text-[10px] text-secondary font-bold">14 • Loop</span>
+<div class="my-2">
+<span class="text-xs font-display font-bold uppercase text-secondary block">Skill Memory</span>
+<span class="text-[11px] text-on-surface-variant font-body">Continuous Clamping</span>
+</div>
+<span class="material-symbols-outlined text-sm text-secondary animate-pulse">autorenew</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 6: ROLE-BASED OPERATIONAL WORKSPACES -->
+<section class="py-24 sm:py-32 px-6 border-t border-outline-variant/30" id="roles">
+<div class="max-w-6xl mx-auto flex flex-col gap-12">
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<span class="font-mono text-xs text-secondary uppercase tracking-widest font-semibold">Access Portals</span>
+<h2 class="font-display text-3xl sm:text-4xl font-bold uppercase text-white tracking-tight mt-2">
+              Calibrated Operational Consoles
+            </h2>
+</div>
+<span class="font-mono text-xs text-on-surface-variant">MULTI-MONITOR SUPPORTED • RBAC</span>
+</div>
+<!-- 4 Refined Role Cards with Hover Lift -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Duty Forecaster -->
+<div class="glass-panel rounded-2xl p-6 flex flex-col justify-between hover:-translate-y-1.5 hover:border-primary-container/80 transition-all duration-300 group">
+<div>
+<div class="w-10 h-10 rounded-xl bg-primary-container/10 border border-primary-container/30 flex items-center justify-center text-primary-container mb-5 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-xl">air</span>
+</div>
+<h3 class="font-display text-lg font-bold uppercase text-white">Duty Forecaster</h3>
+<p class="text-xs text-on-surface-variant mt-2 font-body leading-relaxed">
+                Review fused Bayesian grids, inspect catchment quantiles (P10-P90), and export official forecast bulletins.
+              </p>
+</div>
+<a class="mt-6 w-full py-2.5 rounded-xl bg-primary-container text-black font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 hover:bg-white transition-colors" href="#">
+<span>Enter Workspace</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+<!-- HPC Operations -->
+<div class="glass-panel rounded-2xl p-6 flex flex-col justify-between hover:-translate-y-1.5 hover:border-secondary/80 transition-all duration-300 group">
+<div>
+<div class="w-10 h-10 rounded-xl bg-secondary/10 border border-secondary/30 flex items-center justify-center text-secondary mb-5 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-xl">terminal</span>
+</div>
+<h3 class="font-display text-lg font-bold uppercase text-white">HPC Operations</h3>
+<p class="text-xs text-on-surface-variant mt-2 font-body leading-relaxed">
+                Track NCUM/GFS file arrival latency, 4,682 AWS sensor telemetry feeds, and GPU inference batch times.
+              </p>
+</div>
+<a class="mt-6 w-full py-2.5 rounded-xl bg-surface-container-high border border-outline-variant hover:border-secondary text-secondary font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" href="#">
+<span>Enter Workspace</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+<!-- Model Analyst -->
+<div class="glass-panel rounded-2xl p-6 flex flex-col justify-between hover:-translate-y-1.5 hover:border-purple-400/80 transition-all duration-300 group">
+<div>
+<div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-300 mb-5 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-xl">query_stats</span>
+</div>
+<h3 class="font-display text-lg font-bold uppercase text-white">Model Analyst</h3>
+<p class="text-xs text-on-surface-variant mt-2 font-body leading-relaxed">
+                Analyze 30-day conditional skill matrices, examine wet/dry regime drift, and audit Brier scorecards.
+              </p>
+</div>
+<a class="mt-6 w-full py-2.5 rounded-xl bg-surface-container-high border border-outline-variant hover:border-purple-400 text-purple-300 font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" href="#">
+<span>Enter Workspace</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+<!-- System Auditor -->
+<div class="glass-panel rounded-2xl p-6 flex flex-col justify-between hover:-translate-y-1.5 hover:border-outline transition-all duration-300 group">
+<div>
+<div class="w-10 h-10 rounded-xl bg-surface-container-highest border border-outline-variant flex items-center justify-center text-outline mb-5 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-xl">verified_user</span>
+</div>
+<h3 class="font-display text-lg font-bold uppercase text-white">System Auditor</h3>
+<p class="text-xs text-on-surface-variant mt-2 font-body leading-relaxed">
+                Verify explainability provenance chains, inspect parameter clamping histories, and manage data governance.
+              </p>
+</div>
+<a class="mt-6 w-full py-2.5 rounded-xl bg-surface-container-high border border-outline-variant hover:border-primary-container text-on-surface font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" href="#">
+<span>Enter Workspace</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 7: POWERFUL CLOSING CINEMATIC CTA -->
+<section class="py-28 sm:py-36 px-6 relative overflow-hidden text-center mesh-gradient border-t border-outline-variant/30">
+<div class="max-w-4xl mx-auto flex flex-col items-center relative z-10">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 border border-primary-container/30 flex items-center justify-center text-primary-container mb-6">
+<span class="material-symbols-outlined text-2xl">all_inclusive</span>
+</div>
+<h2 class="font-display text-3xl sm:text-5xl lg:text-6xl font-bold uppercase text-white tracking-tight leading-tight">
+          Weather models will always disagree.<br/>
+<span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+            The question is how intelligently we respond.
+          </span>
+</h2>
+<p class="mt-6 text-sm sm:text-base text-on-surface-variant max-w-xl font-body">
+          Replace unweighted guesswork with explainable, adaptive forecast intelligence.
+        </p>
+<div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+<a class="px-8 py-3.5 rounded-full bg-primary-container text-black font-display font-bold text-sm tracking-wider uppercase flex items-center gap-2 shadow-[0_0_30px_rgba(0,240,255,0.35)] hover:scale-105 hover:bg-white transition-all" href="#roles">
+<span class="material-symbols-outlined text-lg">login</span>
+            Enter VARUNA Platform
+          </a>
+<a class="px-8 py-3.5 rounded-full glass-panel hover:bg-surface-container-highest text-on-surface font-display font-medium text-sm tracking-wider uppercase transition-all" href="#architecture">
+            Inspect Architecture
+          </a>
+</div>
+<div class="mt-14 pt-8 border-t border-outline-variant/30 text-[11px] font-mono text-on-surface-variant/70 max-w-2xl">
+          Scientific Notice: Prototype developed under MoES / NCMRWF institutional parameters (SIH26081). Does not supersede official cyclonic or emergency weather bulletins issued by the India Meteorological Department (IMD).
+        </div>
+</div>
+</section>
+</main>
+<!-- REFINED, CLEAN FOOTER -->
+<footer class="border-t border-outline-variant/30 bg-surface-container-lowest py-12 px-6">
+<div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+<div class="flex items-center gap-4">
+<img alt="VARUNA Logo" class="h-6 w-auto object-contain opacity-80" src="https://lh3.googleusercontent.com/aida/AEtjO1W7TE2ZNMtydD3t9SGtMLVL2CRgkpTrH1iq2ur7dbIyYj1eQfN_vYbT6msaPKHlhynQYMKTK2dRz74J3xA6wRDjUm9wtv4zdvwuWOyuXIKgPObWeRwY5LHGUTFnkbsP9d7rzhxs6Z3Y7sVZ9wpQwv5tyVo3cA8SYetEHhncVlf1M_952sril-rryqg11j9wHtOdFfn5t_t2il1CN3_v6mtARuyoP1bghwX-gQQ4C7PXw_kKkslY0hB-iMU0"/>
+<span class="font-mono text-xs text-on-surface-variant">© 2024 Ministry of Earth Sciences &amp; NCMRWF Consortium</span>
+</div>
+<div class="flex items-center gap-6 font-mono text-xs text-on-surface-variant">
+<span class="flex items-center gap-1.5 text-emerald-400">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          UTC Latency: 42ms
+        </span>
+<a class="hover:text-primary transition-colors" href="#pipeline">Documentation</a>
+<a class="hover:text-primary transition-colors" href="#roles">Portals</a>
+</div>
+</div>
+</footer>
+<!-- LIGHTWEIGHT INTERACTIVITY SCRIPT -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Architecture Tabs Toggle
+      const tabSys = document.getElementById('tab-btn-sys');
+      const tabLoop = document.getElementById('tab-btn-loop');
+      const viewSys = document.getElementById('arch-view-system');
+      const viewLoop = document.getElementById('arch-view-loop');
+
+      if (tabSys && tabLoop) {
+        tabSys.addEventListener('click', () => {
+          tabSys.className = 'px-5 py-2 rounded-full font-mono text-xs uppercase tracking-wider font-bold transition-all bg-primary-container text-black shadow-lg shadow-cyan-500/20';
+          tabLoop.className = 'px-5 py-2 rounded-full font-mono text-xs uppercase tracking-wider font-semibold transition-all glass-panel text-on-surface-variant hover:text-white';
+          viewSys.classList.remove('hidden');
+          viewLoop.classList.add('hidden');
+        });
+
+        tabLoop.addEventListener('click', () => {
+          tabLoop.className = 'px-5 py-2 rounded-full font-mono text-xs uppercase tracking-wider font-bold transition-all bg-primary-container text-black shadow-lg shadow-cyan-500/20';
+          tabSys.className = 'px-5 py-2 rounded-full font-mono text-xs uppercase tracking-wider font-semibold transition-all glass-panel text-on-surface-variant hover:text-white';
+          viewLoop.classList.remove('hidden');
+          viewSys.classList.add('hidden');
+        });
+      }
+
+      // 2. Interactive Dynamic Sandbox Logic
+      const regimePresets = {
+        monsoon: {
+          ncum: 44,
+          wrf: 26,
+          ai: 22,
+          gfs: 8,
+          rationale: 'Heavy convective inflow prioritizes NCUM (44%) due to superior orographic parametrization. WRF captures mesoscale convergence (26%) with mild bias damping.'
+        },
+        winter: {
+          ncum: 35,
+          wrf: 9,
+          ai: 18,
+          gfs: 38,
+          rationale: 'Dry synoptic winter regimes favor NOAA GFS (38%) and NCUM (35%) over broad Indo-Gangetic basins where large-scale planetary Rossby waves dominate.'
+        },
+        cyclonic: {
+          ncum: 40,
+          wrf: 35,
+          ai: 15,
+          gfs: 10,
+          rationale: 'Bay of Bengal tropical depression triggers mesoscale boundary layer lifting. WRF surges to 35% while neural graph surrogates are damped to 15%.'
+        }
+      };
+
+      let activeRegime = 'monsoon';
+
+      function updateWeights() {
+        const data = regimePresets[activeRegime];
+        document.getElementById('sb-ncum-val').textContent = data.ncum + '%';
+        document.getElementById('sb-ncum-bar').style.width = data.ncum + '%';
+
+        document.getElementById('sb-wrf-val').textContent = data.wrf + '%';
+        document.getElementById('sb-wrf-bar').style.width = data.wrf + '%';
+
+        document.getElementById('sb-ai-val').textContent = data.ai + '%';
+        document.getElementById('sb-ai-bar').style.width = data.ai + '%';
+
+        document.getElementById('sb-gfs-val').textContent = data.gfs + '%';
+        document.getElementById('sb-gfs-bar').style.width = data.gfs + '%';
+
+        document.getElementById('sb-rationale').textContent = data.rationale;
+      }
+
+      // Regime Click Binding
+      const regimeBtns = document.querySelectorAll('#sandbox-regimes button');
+      regimeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          regimeBtns.forEach(b => {
+            b.className = 'w-full text-left px-4 py-2.5 rounded-xl font-mono text-xs bg-surface-container-high text-on-surface-variant hover:text-white font-medium flex items-center justify-between transition-all';
+          });
+          btn.className = 'active-regime w-full text-left px-4 py-2.5 rounded-xl font-mono text-xs bg-primary-container text-black font-bold flex items-center justify-between transition-all';
+          activeRegime = btn.dataset.regime;
+          updateWeights();
+        });
+      });
+
+      // Lead Click Binding
+      const leadBtns = document.querySelectorAll('#sandbox-leads button');
+      leadBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          leadBtns.forEach(b => {
+            b.className = 'py-2 rounded-xl font-mono text-xs bg-surface-container-high text-on-surface-variant hover:text-white font-semibold transition-all';
+          });
+          btn.className = 'active-lead py-2 rounded-xl font-mono text-xs bg-primary-container text-black font-bold transition-all';
+        });
+      });
+
+    });
+  </script>
+</body></html>
