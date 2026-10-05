@@ -1,70 +1,90 @@
-# VARUNA judge demo video (≈3 min)
+# VARUNA judge demo video (3 min)
 
 `record_demo.py` drives the real UI in Chromium and records a 1920×1080 video. The recording includes:
 
 - a visible mouse cursor with a ripple on every click
 - a manual sign-in, typed on screen
-- a "LAYER n" chapter tag for each part
-- burned-in captions
+- an "OUTCOME n" tag for each part
+- burned-in captions, with numbers read live from the API (nothing typed into the script)
 - an amber highlight on the element being explained
 
-`demo/VARUNA_demo_3min.mp4` was recorded from the **synthetic demo scenario**. The app's own badge says so, and a watermark stays on screen the whole time. For the submission, re-record on your machine after real data is in (see below): the same script then shows IMD / NCMRWF / global-model data.
+The video follows the **five expected outcomes in the SIH26081 problem statement**, in order, and shows each one by clicking through full pages (no hover tooltips).
 
-## Layers in the video
+The rendered video is **not stored in the repository**. When no real data is loaded, it is recorded on the labelled synthetic demo scenario, and a watermark says so. For the submission, load real data first and record on your machine (see below).
 
-| # | Layer | What the judge sees |
+## Structure
+
+| Video time | Tag | What the judge sees |
 |---|---|---|
-| 0 | Secure access | Typed sign-in, role-based accounts, no public sign-up |
-| 1 | The problem | Models disagree (min–max spread) — "which one do you trust?"; honest data-source badge |
-| 2 | India-first data | IMD gridded truth, NCMRWF drop folder, IMD API, IMDAA, MOSDAC with real statuses; global models only as gap-fillers |
-| 3 | Core 14-stage pipeline | Click QC → Skill → Trust → Fusion: each stage's inputs, outputs, timing |
-| 4 | Every number explains itself | Fused value popover: Σ w·F terms, sources, issue/received time; weight explanation |
-| 5 | Resilience | Drop the most-trusted feed → all 14 stages re-run, weights re-normalise |
-| 6 | Sudden-change alerts | +60 mm jump in one model → the outlier loses trust, the bell fires, and the alert shows the rule maths |
-| 7 | Verify → learn | Stage 14: observation entered, per-model errors, skill memory updated (closed loop) |
-| 8 | Trust & accountability | Auditor workspace, hash-chained audit log, "Verify integrity" |
+| 0:00 | Title | The five SIH26081 expected outcomes |
+| 0:05 | Sign-in | Typed manual sign-in; no public sign-up |
+| 0:15 | ① Dynamically blended forecast | Model spread vs VARUNA's blend vs simple average. The region is switched and the weights, blend and IMD colour change |
+| 0:37 | ② Model weight maps | India map: dominant model, trust intensity, disagreement |
+| 0:55 | ③ Improved forecast skill | Held-out benchmark: stacked blend vs simple average vs every single model |
+| 1:12 | ④ Extreme-weather guidance | Risk matrix for every subdivision × hazard against IMD categories; dossier with the models above and below the threshold |
+| 1:26 | ⑤ Operational workflow | India-first data, then the 14 stages and QC, then a dropped feed, then a sudden jump and the alert with its maths, then verify, then the skill update, then the fixed role and the auditor's hash-chain check |
+| 2:50 | Close | The five outcomes ticked off |
 
-## Re-recording with real data (recommended for submission)
+## Recording with real data (recommended for submission)
 
 ```bash
 # 1. backend + frontend running, real data loaded
 python scripts/verify_real_data.py --days 60        # must end with 0 failed
-# 2. record
+# 2. record (≈ 4 min of wall time)
 pip install playwright && python -m playwright install chromium
-python scripts/demo_video/record_demo.py --url http://localhost:3000 --api http://localhost:8000/api --out demo
-# 3. encode (≈ 3:00; adjust 0.775 so the output is ~180 s — the webm runs ~18 % slower than wall time)
-ffmpeg -ss 0.45 -i demo/varuna_demo.webm -vf "setpts=0.775*PTS,fps=30,fade=t=in:st=0:d=0.6" -c:v libx264 -crf 22 -pix_fmt yuv420p demo/VARUNA_demo.mp4
+python scripts/demo_video/record_demo.py --url http://localhost:3000 --api http://localhost:8000/api --out demo_out
+# 3. encode to 3:00. The webm runs longer than wall time; F = 180 / (webm duration in s)
+ffprobe -v error -show_entries format=duration -of csv=p=0 demo_out/varuna_demo.webm
+ffmpeg -ss 0.45 -i demo_out/varuna_demo.webm -vf "setpts=F*PTS,fps=30,fade=t=in:st=0:d=0.6" -c:v libx264 -crf 22 -pix_fmt yuv420p VARUNA_demo.mp4
 ```
 
-Options: `--region IN_TELANGANA_DECCAN`, `--theme dark`, `--debug` (fast dry run that saves a screenshot at every caption instead of a usable video).
+Keep `demo_out/` outside the repository, or delete it after encoding.
+
+Options:
+
+- `--region` / `--region2` choose the two regions compared in outcome ①.
+- `--theme dark` records in dark mode.
+- `--debug` is a fast dry run that saves a screenshot at every caption instead of a usable video.
 
 Before recording:
 
-- Run a backfill so the Skill stage shows verified history.
-- Close other browser tabs.
+- Run a backfill so skill shows verified history.
 - If you have no real NCMRWF files, leave that card at NOT CONFIGURED. Don't fake it.
+- If you record on real data, re-read the numbers in the voice-over below against your captions; the script uses the synthetic run's numbers.
 
-## Voice-over script
+## Voice-over (3:00, about 430 words)
 
-Times are approximate (±5 s). Align them in your editor against the captions, and keep the narration short; the captions carry the detail.
+Speak at a calm pace, roughly 150 words a minute. Times are video times, ±3 s; let the captions carry the exact numbers.
 
-| ~Time | Say |
-|---|---|
-| 0:00 | "Six weather models, one trust decision. This is VARUNA, built for MoES and NCMRWF." |
-| 0:07 | "Access is role-based. There is no public sign-up; an administrator creates every account." |
-| 0:18 | "For Telangana, the models disagree by more than fifty millimetres. Which one should the forecaster trust?" |
-| 0:24 | "VARUNA always tells you where its numbers come from." |
-| 0:30 | "India first. IMD gridded rainfall is our ground truth, and NCMRWF and IMD forecast files take priority. Global models only fill gaps." |
-| 0:42 | "This is the core: fourteen stages on every request, each one open, timed and auditable." |
-| 0:48 | "Quality control: impossible values are rejected and stale feeds quarantined, never blended." |
-| 0:56 | "Skill: each model's verified error for this region and lead time, with the evidence labelled." |
-| 1:04 | "Trust: weights from skill, recent error and the weather regime, always summing to one." |
-| 1:12 | "Fusion, with the simple average kept beside it, so the gain is always visible." |
-| 1:21 | "No black box. Every number opens its own formula, every term, and the source and time of each input." |
-| 1:36 | "What if the most trusted feed fails? All fourteen stages re-run instantly, and confidence drops honestly." |
-| 1:48 | "Now a new run jumps by sixty millimetres. VARUNA doesn't follow it blindly: the outlier loses trust, and the forecaster is alerted with the exact maths." |
-| 2:09 | "When the observation arrives, every model's error and VARUNA's own are stored, and skill memory learns from them. That closes the loop." |
-| 2:40 | "An auditor sees everything. One click proves nothing was altered." |
-| 2:50 | "Adaptive, explainable, verified. VARUNA is ready for NCUM and NEPS feeds." |
+**0:00 — Title**
+"Six forecast models. Six different answers. Every day, a forecaster at NCMRWF has to decide which one to believe. SIH26081 asks for a hybrid AI–NWP blending system with five outcomes. This is VARUNA, and you'll see all five, working."
 
-Record the voice separately, for example with Audacity, then add it as an audio track. A soft background track at about −25 dB under the voice works well.
+**0:05 — Sign-in**
+"No public sign-up. An administrator creates every account, and each account has one fixed role."
+
+**0:15 — ① Dynamically blended forecast**
+"Telangana, rain in forty-eight hours. The models range from forty-seven to a hundred and three millimetres. A simple average says seventy-four. VARUNA says sixty-seven point two, because it weights each model by its verified skill for this region, this lead time and this weather regime. Switch to the Western Ghats: new weights, a new blend, and the IMD level moves from yellow to orange. That is a dynamic blend, recomputed on every request."
+
+**0:37 — ② Model weight maps**
+"Outcome two: the weight map. For every Indian subdivision, which model deserves trust. How strongly it dominates. And where the models disagree, which is exactly where a forecaster should look twice."
+
+**0:55 — ③ Improved forecast skill**
+"Outcome three: does blending actually help? On a hundred and twenty-five held-out days, in strict time order, VARUNA's stacked blend has a lower error than the simple average and lower than every single model. This benchmark is synthetic and labelled as such. The same test runs against IMD gridded observations once real data is loaded."
+
+**1:12 — ④ Extreme-weather guidance**
+"Outcome four: extreme weather. Every subdivision and hazard, graded against IMD categories. Click a cell and you see how far above the threshold it is, which models push it over, and how much trust they carry. That turns an orange signal into a decision a forecaster can defend."
+
+**1:26 — ⑤ Operational workflow**
+"Outcome five: the operational workflow. India first. IMD gridded observations are the truth, and NCMRWF and IMD forecast files take priority. Global models only fill gaps."
+"Fourteen stages run on every request, and each can be opened. Quality control rejects impossible values and quarantines stale feeds."
+"Now the most trusted feed fails. All fourteen stages re-run at once; the weights re-normalise, and confidence drops honestly."
+"A new run jumps by sixty millimetres. VARUNA doesn't follow it blindly. It cuts that model's trust and alerts the forecaster, showing the rule, the threshold and both sets of inputs with their times."
+"When the observation arrives, every model's error is stored, and skill memory learns from it. Tomorrow's weights are better than today's."
+"And it's accountable. An auditor, on a separate account, sees every action, including our simulated jump. One click proves the log is untouched."
+
+**2:50 — Close**
+"Dynamic blending. Weight maps. Measured skill. Extreme-weather guidance. A complete operational loop. VARUNA is ready for NCUM and NEPS feeds: plug them in, verify, blend."
+
+Record the voice separately (for example in Audacity) and add it as an audio track. A soft background track at about −25 dB under the voice works well.
+
+If you record on real data, replace the numbers spoken in ① and ③ with the ones in your captions. Never say "IMD" or "NCMRWF" data for a synthetic recording.

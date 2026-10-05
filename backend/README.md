@@ -26,7 +26,7 @@ VARUNA_TEST_DATABASE_URL="postgresql://user:pass@host/dbname?sslmode=require" py
 ## Tests
 
 ```bash
-pytest tests -q          # 77 tests
+pytest tests -q          # 78 tests
 ```
 
 `tests/conftest.py` always points the suite at an isolated SQLite file (`varuna_test.db`). Set `VARUNA_TEST_DATABASE_URL` to test against another database deliberately — the `DATABASE_URL` in `.env` is never used by tests.
@@ -56,7 +56,8 @@ app/
 ├── main.py                  App factory, CORS, start-up (seed + model warm-up), canonical aliases
 ├── core/                    config (path anchoring), database (SQLite WAL pragmas), JWT, RBAC dependencies
 ├── api/                     Routers: auth, dashboard, forecasts, fusion, verification, datasets, jobs,
-│                            experiments, observations, regions, extremes, what-changed, models, demo, health
+│                            experiments, observations, regions, extremes, what-changed, models, demo, health,
+│                            india (IMD / NCMRWF), live (global models, backfill), notifications, audit, governance
 ├── services/
 │   ├── canonical_pipeline.py   The 14 stages (QC → context → skill → trust → fusion → uncertainty → extremes → XAI → verification)
 │   ├── forecast_run_service.py ForecastIntelligencePackage contract (DB-backed: latest issue per model)
@@ -97,8 +98,9 @@ app/
 | `POST /api/india/ncmrwf/scan` | Ingest new NCMRWF / IMD files from `NCMRWF_DROP_DIR` as authorised feed |
 | `GET /api/india/imd/observation` · `/imd/district-warning` | IMD API adapter (dormant until `IMD_API_ENABLED=true`) |
 | `GET /api/live/sources` · `POST /api/live/fetch` · `POST /api/live/backfill` (`truth_source=AUTO\|IMD_GRIDDED\|ERA5`) · `GET /api/live/datasets` | Global models over India + verified skill (`live:fetch`) |
-| `POST /api/verification/verify-run` | Stage 14 on demand: manual observation or ERA5 (`verification:run`) |
+| `POST /api/verification/verify-run` | Stage 14 on demand: manual observation, IMD gridded (`use_imd`) or ERA5 (`verification:run`) |
 | `GET /api/verification/live-skill` · `/records` | Verified skill per model/lead · latest verification rows |
+| `GET /api/verification/drift?variable=` | Trust drift per model × region × lead: recent MAE vs the model's own baseline (DEGRADING / IMPROVING / STABLE / INSUFFICIENT_HISTORY) |
 | `GET /api/notifications` · `/{id}` · `POST /{id}/read` · `/read-all` | Forecast-change notifications with rule maths |
 | `GET /api/audit/events` · `/verify-chain` | Audit trail (`audit:view`) |
 | `GET/POST /api/governance/proposals` · `/{id}/approve` · `/reject` · `GET /config` | Propose → approve (separation of duties) |
@@ -106,13 +108,21 @@ app/
 | `POST /api/datasets/ingest` | Upload a dataset (`data:ingest`) |
 | `POST /api/verification/feedback-loop` | Recompute model skill from verification history (`skill:update`) |
 | `POST /api/auth/login` | OAuth2 password form → JWT (24 h) |
-| `POST /api/demo/inject-failure` | Demo: bias / dropout / forced disagreement / reset |
+| `POST /api/demo/inject-failure` · `/demo/load-scenario/{id}` | Demo: bias / dropout / forced disagreement / reset (`demo:inject`, audited as `DEMO_INJECT`) |
 
 Full list (55 operations) in Swagger.
 
+## Roles and security
+
+- `app/core/permissions.py` holds the permission matrix. Every protected route uses `require_permission("…")`; the UI only hides controls it cannot use.
+- One role per account, taken from the JWT. There is no endpoint or header for switching roles.
+- No public registration: accounts are created by an `ADMIN` (`users:manage`).
+- Separation of duties: analysts **propose** scientific changes, admins **approve** them, and nobody can edit forecasts, skill values or audit rows through the API.
+- The audit log is append-only and hash-chained (`GET /api/audit/verify-chain`).
+
 ## Units & conventions
 
-Canonical units: rainfall **mm** (24 h), temperature **°C**, wind **m/s**, humidity **%**, pressure **hPa**. Model slots: `NCUM`, `GFS`, `WRF`, `AI_WEATHER`, plus live `ECMWF_IFS`, `UKMO_UM`, `ICON` (aliases such as `NCUM_SYNTHETIC`, `GFS_0P25`, `AIFS`, `GRAPHCAST`, `ecmwf_ifs025` are mapped on ingestion). QC states: ACCEPTED · WARNING · REJECTED · QUARANTINED (> 48 h old) · MISSING. Exceedance "probabilities" are an uncalibrated Gaussian indicator (`is_calibrated_probability: false`).
+Canonical units: rainfall **mm** (24 h), temperature **°C**, wind **m/s**, humidity **%**, pressure **hPa**. Model slots: `NCUM`, `GFS`, `WRF`, `AI_WEATHER`, plus live `ECMWF_IFS`, `UKMO_UM`, `ICON` (aliases such as `NCUM_SYNTHETIC`, `GFS_0P25`, `AIFS`, `GRAPHCAST`, `ecmwf_ifs025` are mapped on ingestion). QC states: ACCEPTED · WARNING · REJECTED · QUARANTINED (issued > 48 h before the freshest input) · MISSING. Exceedance "probabilities" are an uncalibrated Gaussian indicator (`is_calibrated_probability: false`).
 
 ## Performance (measured in the audit)
 

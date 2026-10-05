@@ -18,9 +18,10 @@ VARUNA/
 ├── frontend/                React 18 + Vite + Tailwind control-room UI (light & dark)               → frontend/README.md
 ├── data/synthetic/varuna_synth/   Synthetic multi-model dataset generator (CSV / Parquet / NetCDF / Zarr)
 ├── varuna_feel3/varuna/varuna_ingest/  Stand-alone format adapters (tabular / gridded / GRIB2 / API JSON)
-├── scripts/                 End-to-end pipeline proof & live-system verification scripts
+├── scripts/                 verify_real_data.py (real-data acceptance test), demo_video/ (judge-video recorder + voice-over)
 ├── varuna_forecast_intelligence_platform/   UI design mock-ups (reference only)
 ├── AUDIT_NOTES.md           Audit findings, fixes, benchmark results, roadmap
+├── DATA_SOURCES.md          India-first data tiers: IMD gridded, NCMRWF drop folder, IMD API, global reference
 ├── Dockerfile · render.yaml Deployment (API)
 └── requirements.txt         → backend/requirements.txt
 ```
@@ -65,7 +66,7 @@ python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\a
 pip install -r requirements.txt
 cp .env.example .env                                    # SQLite by default; never commit .env
 uvicorn app.main:app --reload --port 8000               # Swagger: http://localhost:8000/api/docs
-pytest tests -q                                         # 77 tests, isolated SQLite DB
+pytest tests -q                                         # 78 tests, isolated SQLite DB
 ```
 
 **Frontend** (Node 18+):
@@ -78,6 +79,14 @@ npm run build          # type-check + production bundle in dist/
 ```
 
 Demo accounts (seeded on first start, password `varuna2026`): `forecaster@`, `ops@`, `analyst@`, `admin@`, `auditor@ncmrwf.gov.in`. There is no public sign-up; administrators create accounts (Governance → Users). **First real-data steps:** sign in as `ops@…` → *Data sources* → read an **IMD gridded** value, **Fetch** global models, **Run backfill** (truth = IMD gridded), and scan the **NCMRWF drop folder** once files are delivered. If the API is unreachable the UI starts an *offline demo session*; wrong passwords are always rejected.
+
+**Check it on real data** (backend running, internet access to imdpune.gov.in and open-meteo.com):
+
+```bash
+python scripts/verify_real_data.py --days 60     # PASS / WARN / FAIL per step; must end with 0 failed
+```
+
+**Hosting:** the frontend deploys to Vercel (`frontend/vercel.json`, which proxies `/api` to Render); see `frontend/README.md`.
 
 **Docker / Render:** `docker build -t varuna . && docker run -p 8000:8000 --env-file backend/.env varuna`. `render.yaml` deploys the API with a managed PostgreSQL database.
 
@@ -102,6 +111,8 @@ Demo accounts (seeded on first start, password `varuna2026`): `forecaster@`, `op
 | ADMIN | Governance | manage users, **approve/reject** proposals, read audit — cannot edit forecasts, skill or audit rows |
 | AUDITOR | Audit trail | read-only: audit trail (hash-chain verification), configuration, evidence |
 
+Each account has exactly one role, fixed at sign-in. There is no role switcher in the UI: a person who needs another role gets a separate account from an administrator, and the API checks every request against the account's own permissions.
+
 Every sign-in, denial, ingest, fetch, verification, skill update, user change and approval is written to an append-only, hash-chained audit log.
 
 ## Further reading
@@ -110,6 +121,7 @@ Every sign-in, denial, ingest, fetch, verification, skill update, user change an
 - [`DATA_SOURCES.md`](./DATA_SOURCES.md) — connecting live, institutional and file data; honest limits
 - [`backend/README.md`](./backend/README.md) — API, configuration, pipeline internals
 - [`frontend/README.md`](./frontend/README.md) — UI structure, theming rules
+- [`scripts/demo_video/README.md`](./scripts/demo_video/README.md) — recording the 3-minute judge video (five SIH26081 outcomes) and its voice-over
 - [`VARUNA_SCIENTIFIC_VALIDATION_REPORT.md`](./VARUNA_SCIENTIFIC_VALIDATION_REPORT.md), [`FRONTEND_CONTROL_ROOM_CONTRACT.md`](./FRONTEND_CONTROL_ROOM_CONTRACT.md) — earlier design documents (historical; numbers superseded by the live benchmark)
 
 MIT License · Smart India Hackathon 2026 · Prototype decision support — does not replace official IMD warnings.

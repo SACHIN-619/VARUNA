@@ -68,7 +68,7 @@ Stacking beats the simple average on every seed (+2.9 % to +18.7 %) and is best 
 | Frontend login: any password succeeded when the API returned 401 (two layers of "guaranteed fallback") | Fixed — offline demo only when the API is unreachable |
 | Backend login accepted `varuna2026` for any user without a hash | Removed; legacy demo users are upgraded at seed time; generic "invalid email or password" message |
 | Write endpoints open to anonymous users (`/datasets/ingest`, `/jobs/ingest`, `/jobs/{id}/cancel`, `/verification/feedback-loop`, `/experiments/run`) | Now role-guarded; UI sends the JWT |
-| UI role switcher let a Forecaster become ADMIN | Can only view as own role or lower |
+| UI role switcher let a Forecaster become ADMIN | Role switcher removed; the role is fixed to the signed-in account |
 | ANALYST login saw an **empty sidebar** (`ANALYST` vs `MODEL_ANALYST`) | Normalised |
 | `allow_origins=["*"]` with `allow_credentials=True` | Credentials only with an explicit origin list (`CORS_ORIGINS`) |
 | Default `SECRET_KEY` in production | Start-up warning |
@@ -103,7 +103,7 @@ Deleting files in your folder was not possible from this session. Recommended cl
 | `data/storage/models/` (root) | Unused after path anchoring; artifacts live in `backend/data/storage/models/` |
 | Old README sections 10+ | Contained pasted chat-assistant output ("Searched for 'role'…", `file:///c:/Users/...` links) — README rewritten |
 
-`frontend/src/components/layout/SystemStatusBar.tsx` is unused since pass 2 (replaced by `ContextBar`) and can be deleted. Pass 2 rewired Model Performance, Operations, Data Health, System Health, Audit Log, Verification Centre, Why This Forecast and the Control Room to API data (see §9). Still illustrative: Failure Memory cards, Regional lead-time cards, the Extreme Events list, the subdivision trust map colours and the guided walkthrough text.
+`frontend/src/components/layout/SystemStatusBar.tsx` is unused since pass 2 (replaced by `ContextBar`) and can be deleted. Pass 2 rewired Model Performance, Operations, Data Health, System Health, Audit Log, Verification Centre, Why This Forecast and the Control Room to API data (see §9). Still illustrative: Regional lead-time cards, the subdivision trust map colours and the guided walkthrough text. (Extreme Events and Failure Memory were rewired in pass 4, below.)
 
 ## 7. Keeping VARUNA competitive (2025–26 landscape)
 
@@ -182,6 +182,13 @@ Open-Meteo was **kept but demoted** to a "global reference" lane: the problem st
   - Now: staleness is measured against the freshest input in the same run.
 - **Groq (`gsk_…`) keys work without extra setup.** The endpoint switches to Groq's API automatically.
 - **New LLM guard.** If a briefing contains a number that is not in the computed facts, the text is discarded and the deterministic template is used.
+
+### Pass 4 — pages a judge could open on the live site
+
+- **Extreme Events** was a hand-typed list. Its "70.1 mm" did not match the 67.2 mm shown on the dashboard for the same case. It now runs the pipeline for every subdivision × rainfall, heat and wind, grades the fused value against IMD categories, and lists the models above and below the threshold.
+- **Model Failure & Drift** showed invented "observed patterns". It now reads `GET /api/verification/drift`: recent MAE against each model's own baseline, from stored verification rows (IMD-gridded or ERA5 backfill, stage-14 verifications). When there is no history, it says so. Test: `tests/test_trust_drift.py`.
+- **Role switcher removed.** A role is fixed to its account.
+- **`frontend/vercel.json`** proxies `/api` to Render and falls back to `index.html` for SPA routes.
 
 ## 9. How these notes were produced
 

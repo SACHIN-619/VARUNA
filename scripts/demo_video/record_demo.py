@@ -1,5 +1,5 @@
 """
-Records the VARUNA judge demo (≈3 min, 1920x1080) with a visible mouse cursor, click ripples,
+Records the VARUNA judge demo (≈3 min, 1920x1080), structured around the five SIH26081 expected outcomes, with a visible mouse cursor, click ripples,
 layer chapter tags, burned-in captions and highlight rings — driven through the real UI.
 
 Usage (backend on :8000, frontend on :5173 or any URL serving the built app with /api proxied):
@@ -83,22 +83,22 @@ p{font:500 24px/1.5 Inter;color:#cbd5e1;margin:0 0 10px}.row{display:flex;gap:14
 def card(body, foot):
     return CARD.replace("@@BODY@@", body).replace("@@FOOT@@", foot)
 
-INTRO = card("""<div class="k">Smart India Hackathon 2026 · SIH26081</div>
-<h1>Six weather models.<br><span>One trust decision.</span></h1>
-<p>VARUNA is a hybrid AI–NWP forecast-blending system for India: it decides which model to trust —
-where, when and by how much — and proves it against IMD observations.</p>
-<div class="row"><div class="c">India-first data</div><div class="c">14-stage traceable pipeline</div>
-<div class="c">Every number explains itself</div><div class="c">Verified skill · closed loop</div><div class="c">Audit-grade governance</div></div>""",
-                  "Decision support · not an official warning service")
+INTRO = card("""<div class="k">Smart India Hackathon 2026 · SIH26081 · MoES / NCMRWF</div>
+<h1>Hybrid AI–NWP forecast blending.<br><span>Five outcomes, shown working.</span></h1>
+<p>The problem statement asks for five things. This video shows each one in the running system, in order:</p>
+<div class="row"><div class="c">① Dynamically blended forecast</div><div class="c">② Model weight maps</div>
+<div class="c">③ Improved forecast skill</div><div class="c">④ Extreme-weather guidance</div><div class="c">⑤ Operational workflow</div></div>""",
+             "Decision support · not an official warning service")
 
-OUTRO = card("""<div class="k">What you just saw</div>
-<h1>Adaptive. Explainable. <span>Verified.</span></h1>
-<div class="row"><div class="c">① Real Indian data path: IMD gridded truth, NCMRWF feeds first</div>
-<div class="c">② 14 stages you can open, time and audit</div><div class="c">③ Σ w·F lineage behind every number</div>
-<div class="c">④ Self-healing when a feed drops</div><div class="c">⑤ Change alerts with the maths</div>
-<div class="c">⑥ Verify → skill memory → next weights</div><div class="c">⑦ Tamper-evident audit, separation of duties</div></div>
-<p style="margin-top:28px">Ready for NCUM-G / NCUM-R / NEPS feeds — plug in, verify, blend.</p>""",
-                 "github / docs: README · DATA_SOURCES.md · AUDIT_NOTES.md")
+OUTRO = card("""<div class="k">SIH26081 expected outcomes</div>
+<h1>All five, <span>working end to end.</span></h1>
+<div class="row"><div class="c">① Blend re-weighted per region, lead time and regime</div>
+<div class="c">② India weight map: dominant model per subdivision</div>
+<div class="c">③ Lower error than the simple average and every single model</div>
+<div class="c">④ IMD-category guidance, with the models behind it</div>
+<div class="c">⑤ IMD/NCMRWF ingest → 14 stages → alert → verify → learn → audit</div></div>
+<p style="margin-top:28px">Ready for NCUM-G / NCUM-R / NEPS feeds: plug in, verify, blend.</p>""",
+             "README · DATA_SOURCES.md · scripts/verify_real_data.py")
 
 
 class Director:
@@ -161,6 +161,21 @@ class Director:
         await locator.fill("")
         await locator.type(text, delay=delay)
 
+    async def ripple_at(self, x, y):
+        await self.page.evaluate("""([x,y]) => { const r = document.createElement('div'); r.className='__rip';
+            r.style.left=x+'px'; r.style.top=y+'px'; document.body.appendChild(r); setTimeout(()=>r.remove(),700); }""", [x, y])
+
+    async def select(self, locator, value):
+        """Move the visible cursor to a dropdown, 'click' it and pick a value (native pickers do not render on video)."""
+        pt = await self.move_to(locator)
+        if pt:
+            await self.ripple_at(*pt)
+        await asyncio.sleep(0.35)
+        await locator.select_option(str(value))
+
+    async def nav(self, name):
+        await self.click(self.page.locator("aside").get_by_role("button", name=re.compile("^" + re.escape(name))).first)
+
 
 def api_token(api, email, pw):
     data = urllib.parse.urlencode({"username": email, "password": pw}).encode()
@@ -173,25 +188,50 @@ def api_post(api, path, body, token):
     return json.loads(urllib.request.urlopen(req).read())
 
 
+def api_get(api, path, token=None):
+    req = urllib.request.Request(f"{api}{path}", headers={"Authorization": f"Bearer {token}"} if token else {})
+    return json.loads(urllib.request.urlopen(req).read())
+
+
+def top_weights(sm, n=3):
+    ws = sorted(sm.get("weights") or [], key=lambda w: -w["weight"])[:n]
+    return ", ".join(f"{w['model_id'].replace('_', ' ')} {round(w['weight'] * 100)}%" for w in ws)
+
+
+def region_name(rid):
+    return rid.replace("IN_", "").replace("_", " ").title()
+
+
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:5173")
     ap.add_argument("--api", default=None, help="API base (default <url>/api)")
     ap.add_argument("--region", default="IN_TELANGANA_DECCAN")
+    ap.add_argument("--region2", default="IN_WESTERN_GHATS_KERALA", help="second region for the 'dynamic' comparison")
     ap.add_argument("--email", default="analyst@ncmrwf.gov.in")
     ap.add_argument("--password", default="varuna2026")
     ap.add_argument("--out", default="demo")
     ap.add_argument("--theme", default="light")
-    ap.add_argument("--debug", action="store_true", help="fast run + screenshot at every caption (no video)")
+    ap.add_argument("--debug", action="store_true", help="fast run + screenshot at every caption (no usable video)")
     a = ap.parse_args()
     api = a.api or a.url.rstrip("/") + "/api"
     os.makedirs(a.out, exist_ok=True)
 
-    # Reset shared demo state before recording
+    tok = api_token(api, a.email, a.password)
     try:
-        api_post(api, "/demo/inject-failure", {"action": "reset_scenario"}, api_token(api, a.email, a.password))
+        api_post(api, "/demo/inject-failure", {"action": "reset_scenario"}, tok)
     except Exception as exc:
         print("reset skipped:", exc)
+
+    q = "variable=rainfall&weather_regime=HEAVY_RAINFALL&source=auto"
+    s1 = api_get(api, f"/dashboard/summary?region_id={a.region}&lead_hours=48&{q}")
+    s2 = api_get(api, f"/dashboard/summary?region_id={a.region2}&lead_hours=48&{q}")
+    synthetic = s1.get("source_mode") == "SYNTHETIC_DEMO"
+    bench = api_get(api, "/verification/compare")
+    mae = {m["method"]: m["mae"] for m in bench.get("methods", [])}
+    singles = {k: v for k, v in mae.items() if k in ("NCUM", "GFS", "WRF", "AI_WEATHER", "ECMWF_IFS", "UKMO_UM", "ICON")}
+    best_single = min(singles.items(), key=lambda kv: kv[1]) if singles else ("—", None)
+    stack, avg = mae.get("BIAS_CORRECTED_STACKING"), mae.get("SIMPLE_AVERAGE")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(args=["--force-device-scale-factor=1.3333"])
@@ -206,175 +246,207 @@ async def main():
             os.makedirs(shots, exist_ok=True)
         d = Director(page, time.time(), speed=0.15 if a.debug else 1.0, shots=shots)
 
-        async def settle(s=1.2):
+        async def settle(s=1.0):
             await page.wait_for_load_state("networkidle")
-            await asyncio.sleep(s)
+            await asyncio.sleep(s * d.speed if a.debug else s)
 
-        # ── 0 · Title ─────────────────────────────────────────────────────────────────────────────
+        selects = page.locator("select")   # context bar: region, variable, lead, regime, data
+
+        # ── Title ────────────────────────────────────────────────────────────────────────────────
         await page.set_content(INTRO)
         await d.mark("intro", "Title card")
         await d.wait(6)
 
-        # ── 1 · Manual sign-in (visible cursor + typing) ─────────────────────────────────────────
+        # ── Manual sign-in ───────────────────────────────────────────────────────────────────────
         await page.goto(a.url + "/")
-        await settle(0.8)
-        await d.chap("LAYER 0 · SECURE ACCESS")
-        await d.cap("Signing in manually — no public sign-up; accounts are created by an administrator",
-                    "Role-based access: forecaster · operations · analyst · admin · auditor", "login")
+        await settle(0.6)
+        await d.cap("Signing in by hand. There is no public sign-up: an administrator creates every account, one fixed role each",
+                    "", "login")
         await d.click(page.get_by_role("button", name="Sign in").first)
-        await settle(0.4)
-        await d.type(page.locator('input[type="email"]'), a.email, delay=28)
-        await d.type(page.locator('input[type="password"]'), a.password, delay=45)
-        await d.wait(0.3)
+        await settle(0.3)
+        await d.type(page.locator('input[type="email"]'), a.email, delay=26)
+        await d.type(page.locator('input[type="password"]'), a.password, delay=40)
         await d.click(page.locator('button[type="submit"]'))
         await page.wait_for_url("**/dashboard**")
+        await settle(0.6)
+        await d.wm("Recorded on the labelled SYNTHETIC demo scenario: real IMD / NCMRWF data uses the same screens" if synthetic
+                   else f"Live data · {s1.get('source_mode')}")
+
+        # ── ① Dynamically blended forecast ───────────────────────────────────────────────────────
+        await d.nav("Control Room")
+        await settle(1.0)
+        await selects.nth(3).select_option("HEAVY_RAINFALL")
+        await d.chap("OUTCOME ① · DYNAMICALLY BLENDED FORECAST")
+        fused = page.locator("text=VARUNA fused forecast").locator("xpath=../..")
+        await d.move_to(fused, dy=0.3)
+        await d.hl(fused)
+        vals = [v for v in (s1.get("model_forecasts") or {}).values() if v is not None]
+        await d.cap(f"{region_name(a.region)}, rain in 48 h: the models say {min(vals):g} to {max(vals):g} mm. "
+                    f"VARUNA's blend: {s1['fused_value']} mm",
+                    f"The simple average would say {s1['baselines']['simple_average']} mm. The blend is not an average: "
+                    "each model is weighted by its verified skill", "blend")
+        await d.wait(6.5)
+        await page.mouse.wheel(0, 380)
+        await d.wait(0.6)
+        wcard = page.locator("text=Model trust weights").locator("xpath=../..")
+        await d.hl(wcard)
+        await d.cap(f"Weights here: {top_weights(s1)}", "Non-negative and always summing to 1", "weights")
+        await d.wait(4.5)
+        await page.mouse.wheel(0, -1000)
+        await d.wait(0.4)
+        await d.hl(None)
+        await d.select(selects.nth(0), a.region2)
+        await settle(1.4)
+        await page.mouse.wheel(0, 380)
+        await d.wait(0.5)
+        await d.hl(wcard)
+        lvl1 = (s1.get("extreme_guidance") or {}).get("alert_level")
+        lvl2 = (s2.get("extreme_guidance") or {}).get("alert_level")
+        await d.cap(f"Switch to {region_name(a.region2)}: new weights ({top_weights(s2)}), new blend {s2['fused_value']} mm, IMD level {lvl1} → {lvl2}",
+                    "Weights are recomputed for every region, lead time and weather regime, on every request", "dynamic")
+        await d.wait(6.5)
+        await d.hl(None)
+        await page.mouse.wheel(0, -1000)
+        await d.select(selects.nth(0), a.region)
         await settle(0.8)
 
-        # ── 2 · The problem ──────────────────────────────────────────────────────────────────────
-        await page.goto(f"{a.url}/dashboard/control-room")
-        await settle(1.2)
-        sm = await page.evaluate("async (r) => (await fetch('/api/dashboard/summary?region_id='+r+'&lead_hours=48&source=auto')).json()", a.region)
-        synthetic = sm.get("source_mode") == "SYNTHETIC_DEMO"
-        await d.wm("Recorded with the labelled SYNTHETIC demo scenario — real IMD/NCMRWF runs use the same screens" if synthetic
-                   else f"Live data · {sm.get('source_mode')} · issued {sm.get('issue_time') or ''}")
-        vals = [v for v in (sm.get("model_forecasts") or {}).values() if v is not None]
-        lo, hi = (min(vals), max(vals)) if vals else (0, 0)
-        await d.chap("LAYER 1 · THE PROBLEM")
-        spread = page.locator("text=model spread").locator("xpath=../..")
-        await d.move_to(spread)
-        await d.hl(spread)
-        await d.cap(f"{len(vals)} models disagree for {sm.get('region_id', a.region).replace('IN_', '').replace('_', ' ').title()}: "
-                    f"{lo:g} to {hi:g} mm of rain in 48 h. Which one should a forecaster trust?",
-                    "VARUNA answers: trust each model by its verified skill — for this region, lead time and weather regime", "problem")
+        # ── ② Model weight maps ──────────────────────────────────────────────────────────────────
+        await d.chap("OUTCOME ② · MODEL WEIGHT MAPS")
+        await d.nav("Model Trust Map")
+        await settle(1.6)
+        await d.cap("The weight map: which model India should trust, subdivision by subdivision",
+                    "Colour = the dominant model in that subdivision; the panel on the right lists the full weights", "map")
         await d.wait(5.5)
-        src_badge = page.locator("text=/SYNTHETIC DEMO SCENARIO|NCMRWF\\/IMD|GLOBAL PUBLIC MODELS/i >> visible=true").first
-        if await src_badge.count():
-            await d.move_to(src_badge)
-            await d.hl(src_badge)
-            await d.cap("Every screen says honestly where its numbers come from",
-                        "Synthetic demo · global models · NCMRWF/IMD feeds — never mixed up", "honesty")
-            await d.wait(3.5)
+        ti = page.get_by_role("button", name="Trust Intensity").first
+        if await ti.count():
+            await d.click(ti)
+            await d.wait(1.0)
+            await d.cap("Trust intensity: how strongly the top model dominates. Pale areas mean the models must be read together",
+                        "", "map-intensity")
+            await d.wait(4.5)
+        dis = page.get_by_role("button", name="Disagreement Spread").first
+        if await dis.count():
+            await d.click(dis)
+            await d.wait(1.0)
+            await d.cap("Disagreement: where the models diverge most, and so where the forecast is least certain", "", "map-spread")
+            await d.wait(4.0)
+
+        # ── ③ Improved forecast skill ────────────────────────────────────────────────────────────
+        await d.chap("OUTCOME ③ · IMPROVED FORECAST SKILL")
+        await d.nav("Verification Centre")
+        await settle(1.4)
+        table = page.locator("table").first
+        await d.move_to(table, dy=0.15)
+        await d.hl(table)
+        await d.cap(f"Measured on {bench.get('sample_size', '')} held-out days the system never trained on (strict time order, no future data)",
+                    "Synthetic benchmark: it shows method behaviour, not operational skill. The real-data version runs on IMD gridded truth"
+                    if synthetic or "SYNTH" in str(bench.get("data_provenance", "")).upper() else "", "skill")
+        await d.wait(5.5)
+        row_s = page.locator("tr", has_text="Bias-Corrected Stacking").first
+        await d.move_to(row_s)
+        await d.hl(row_s)
+        await d.cap(f"VARUNA's stacked blend: mean error {stack} mm. Simple average: {avg} mm. Best single model ({best_single[0]}): {best_single[1]} mm",
+                    "Lower error than the simple average and than every individual model", "skill-row")
+        await d.wait(7)
+        await d.hl(None)
+        loop = page.locator("text=Closed loop: verify → skill memory → next weights").first
+        if await loop.count():
+            await d.move_to(loop)
+            await d.cap("And it keeps improving: every verified day feeds skill memory, which sets the next weights",
+                        "Real-data skill comes from backfill against IMD gridded observations (Data sources → Run backfill)", "loop")
+            await d.wait(4.5)
+
+        # ── ④ Extreme-weather guidance ───────────────────────────────────────────────────────────
+        await d.chap("OUTCOME ④ · EXTREME-WEATHER GUIDANCE")
+        await d.nav("Extreme Events")
+        await settle(2.2)
+        matrix = page.locator("table").first
+        await d.hl(matrix)
+        await d.cap("Every subdivision and hazard, run through the pipeline and graded against IMD categories",
+                    "Rain: heavy ≥ 64.5 mm (yellow), very heavy ≥ 115.6 (orange), extremely heavy ≥ 204.5 (red) · heatwave ≥ 40 °C · gale ≥ 14 m/s", "extremes")
+        await d.wait(6)
+        await d.hl(None)
+        cell = page.get_by_role("button", name=re.compile(r"Heavy rainfall$")).first
+        await d.click(cell)
+        await d.wait(0.8)
+        dossier = page.locator("text=Guidance dossier").locator("xpath=../../..")
+        await d.hl(dossier)
+        await d.cap("Click a cell: how far above the threshold, which models push it over, and how much trust they carry",
+                    "So a forecaster can judge an orange signal, not just see it", "dossier")
+        await d.wait(7)
         await d.hl(None)
 
-        # ── 3 · India-first data ─────────────────────────────────────────────────────────────────
-        await page.goto(f"{a.url}/dashboard/live-data")
-        await settle(1.0)
-        await d.chap("LAYER 2 · INDIA-FIRST DATA")
+        # ── ⑤ Operational workflow ───────────────────────────────────────────────────────────────
+        await d.chap("OUTCOME ⑤ · OPERATIONAL WORKFLOW")
+        await d.nav("Data Sources (India-first)")
+        await settle(1.2)
         tier = page.locator("text=1 · Indian sources (primary)")
         cards = tier.locator("xpath=following-sibling::div[1]")
-        await d.move_to(cards, dy=0.3)
         await d.hl(cards)
-        await d.cap("India first: IMD gridded rainfall is the ground truth, NCMRWF / IMD forecast files take priority",
-                    "IMD Pune 0.25° grid · NCMRWF NCUM / NEPS drop folder · IMD API · IMDAA · ISRO MOSDAC", "india")
-        await d.wait(5)
-        table = page.locator("text=All Indian sources").locator("xpath=..")
-        await page.mouse.wheel(0, 520)
-        await d.wait(0.8)
-        await d.hl(table)
-        await d.cap("Each source shows its real status — available, configured, or awaiting institutional access",
-                    "Global models (GFS · ECMWF IFS & AIFS · UK Met Office · DWD ICON) only fill gaps, never relabelled as Indian output", "sources")
-        await d.wait(4.5)
+        await d.cap("Step 1, data in: IMD gridded observations are the truth; NCMRWF / IMD forecast files take priority",
+                    "Global models (GFS, ECMWF, UK Met Office, DWD) only fill gaps, and are always labelled as such", "data")
+        await d.wait(5.5)
         await d.hl(None)
 
-        # ── 4 · Core pipeline ────────────────────────────────────────────────────────────────────
-        await page.goto(f"{a.url}/dashboard/control-room")
+        await d.nav("Control Room")
         await settle(1.0)
-        await d.chap("LAYER 3 · CORE 14-STAGE PIPELINE")
         trace = page.locator("text=Pipeline stage trace").locator("xpath=../..")
-        await d.move_to(trace, dy=0.2)
         await d.hl(trace)
-        await d.cap("The core: 14 stages run on every request — timed, inspectable, auditable",
-                    "Ingest → QC → harmonise → context → skill → disagreement → trust → fusion → uncertainty → extremes → XAI → package → verify", "pipeline")
-        await d.wait(4.5)
-        for label, cap_t, cap_s, secs in [
-            ("2. QC", "Quality control: every value is ACCEPTED, WARNING, REJECTED or QUARANTINED",
-             "A physically impossible value is rejected; a stale feed is quarantined — never blended", 5.5),
-            ("5. SKILL", "Historical skill: each model's verified error for this region and lead time",
-             "Evidence is labelled — verified history vs prior — so nobody mistakes a guess for proof", 5.5),
-            ("7. TRUST", "Adaptive trust: weights from skill, recent error and regime — always summing to 1",
-             "Three strategies: ML meta-model · adaptive reliability · bias-corrected stacking", 6),
-            ("9. FUSION", "Fusion: the blended forecast, with simple average and static blend kept as baselines",
-             "So the gain over naive blending is always visible", 5),
-        ]:
-            await d.hl(None)
-            await d.click(page.get_by_role("button", name=label).first)
-            await d.wait(0.4)
-            drawer = page.locator("aside").filter(has_text="of 14").first
-            await d.hl(drawer)
-            await d.cap(cap_t, cap_s, f"stage {label}")
-            await d.wait(secs)
-            await d.hl(None)
-            await d.click(page.get_by_role("button", name="Close").first)
-            await d.wait(0.3)
-
-        # ── 5 · Explainability ───────────────────────────────────────────────────────────────────
-        await d.chap("LAYER 4 · EVERY NUMBER EXPLAINS ITSELF")
-        await page.mouse.wheel(0, 420)
-        await d.wait(0.8)
-        fused_card = page.locator("text=VARUNA fused forecast").locator("xpath=../../..")
-        fused_num = fused_card.get_by_role("button", name="Show how this number was computed").nth(1)
-        await d.click(fused_num)
-        await d.wait(0.7)
-        await d.cap("No black box: click any number to see its formula, every term, and where each input came from",
-                    "Fused = Σ wᵢ·Fᵢ — weight × forecast for each model, with source, issue and received time", "lineage")
-        await d.wait(8)
-        await page.keyboard.press("Escape")
-        await d.wait(0.4)
-        weights_card = page.locator("text=Model trust weights").locator("xpath=../..")
-        await d.move_to(weights_card, dy=0.25)
-        wbtn = weights_card.get_by_role("button", name="Show how this number was computed").first
-        await d.move_to(wbtn)
-        await d.cap("Hover a weight: MAE, recent error, their evidence and the exact weighting formula",
-                    "A forecaster can defend every weight in a briefing", "weights")
+        await d.cap("Step 2, the 14-stage pipeline runs on every request; each stage shows its result and time",
+                    "Ingest → QC → harmonise → context → skill → disagreement → trust → fusion → uncertainty → extremes → explanation → package → verify", "pipeline")
         await d.wait(5)
+        await d.hl(None)
+        await d.click(page.get_by_role("button", name="2. QC").first)
+        await d.wait(0.6)
+        drawer = page.locator("aside").filter(has_text="of 14").first
+        await d.hl(drawer)
+        await d.cap("Click any stage to open it. Quality control: impossible values are rejected and stale feeds quarantined, never blended",
+                    "", "qc")
+        await d.wait(5)
+        await d.hl(None)
+        await d.click(page.get_by_role("button", name="Close").first)
+        await d.wait(0.3)
 
-        # ── 6 · Resilience ───────────────────────────────────────────────────────────────────────
-        await d.chap("LAYER 5 · RESILIENCE")
+        await page.mouse.wheel(0, 380)
+        await d.wait(0.5)
         drop = page.get_by_role("button", name=re.compile(r"^drop ")).first
-        await d.move_to(drop)
-        await d.hl(weights_card)
-        await d.cap("What if the most trusted model's feed fails right now?", "", "dropout")
-        await d.wait(2)
+        await d.hl(wcard)
+        await d.cap("Step 3, a feed fails: drop the most trusted model", "", "dropout")
+        await d.wait(1.6)
         await d.click(drop)
-        await d.wait(1.8)
-        await d.cap("All 14 stages re-run instantly: the failed model gets weight 0, the rest re-normalise, confidence drops honestly",
-                    "Simulation only — nothing stored, no false alert", "dropout-result")
+        await d.wait(1.6)
+        await d.cap("All 14 stages re-run at once: the failed model gets weight 0, the others re-normalise, and confidence drops honestly",
+                    "Simulation only: nothing stored", "dropout-result")
         await d.wait(5)
         reset = page.get_by_role("button", name=re.compile(r"^reset$")).first
         if await reset.count():
             await d.click(reset)
         await d.hl(None)
-        await d.wait(0.8)
-
-        # ── 7 · Change alerts ────────────────────────────────────────────────────────────────────
-        await d.chap("LAYER 6 · SUDDEN-CHANGE ALERTS")
         await page.mouse.wheel(0, -2000)
-        await d.wait(0.6)
-        await d.cap("A new run arrives: the most trusted model suddenly jumps +60 mm…",
-                    "(demo: the jump is injected as a simulation — and logged in the audit trail as one)" if synthetic else "", "change")
+        await d.wait(0.4)
+
         token = await page.evaluate("() => localStorage.getItem('varuna_access_token')")
-        top_model = max(sm.get("weights") or [{"model_id": "GFS", "weight": 0}], key=lambda w: w["weight"])["model_id"]
+        top_model = max(s1.get("weights") or [{"model_id": "GFS", "weight": 0}], key=lambda w: w["weight"])["model_id"]
+        await d.cap(f"Step 4, a new run arrives: {top_model.replace('_', ' ')} suddenly jumps by +60 mm",
+                    "(demo: the jump is injected as a simulation and logged in the audit trail as one)" if synthetic else "", "change")
         if synthetic:
             api_post(api, "/demo/inject-failure", {"action": "simulate_model_bias", "model_id": top_model, "bias_magnitude": 60}, token)
-        await d.wait(1)
-        await d.click(page.get_by_role("button", name="Re-run").first)
-        await d.wait(2.2)
-        bell = page.get_by_role("button", name="Notifications", exact=False).first
-        await d.move_to(bell)
-        await d.hl(bell)
         await d.wait(0.8)
+        await d.click(page.get_by_role("button", name="Re-run").first)
+        await d.wait(2.0)
+        bell = page.get_by_role("button", name="Notifications", exact=False).first
+        await d.hl(bell)
         await d.click(bell)
-        await d.wait(1)
+        await d.wait(0.8)
         item = page.locator("div.absolute button.w-full").first
         if await item.count():
             await d.click(item)
             await d.wait(1)
             await d.hl(None)
-            await d.cap("VARUNA does not blindly follow the jump: the outlier loses trust, and the forecaster is alerted — with the maths",
-                        "Which rules fired (IMD colour · dominant model · confidence · weight shift), their thresholds, both input sets and timestamps", "alert")
-            await d.wait(7.5)
+            await d.cap("The forecaster is alerted, with the rule that fired, its threshold, both input sets and the times",
+                        "VARUNA cuts the trust of the model that jumped instead of following it", "alert")
+            await d.wait(7)
             await page.keyboard.press("Escape")
-            await page.mouse.click(30, 30)
             close = page.get_by_role("button", name="Close").first
             if await close.count():
                 await d.click(close)
@@ -384,66 +456,61 @@ async def main():
         await d.click(page.get_by_role("button", name="Re-run").first)
         await d.wait(0.8)
 
-        # ── 8 · Closed loop ──────────────────────────────────────────────────────────────────────
-        await d.chap("LAYER 7 · VERIFY → LEARN")
-        await d.cap("")
         await d.click(page.get_by_role("button", name="14. VERIFY").first)
-        await d.wait(0.8)
+        await d.wait(0.7)
         drawer = page.locator("aside").filter(has_text="of 14").first
-        await d.cap("When the observation arrives: verify against a rain gauge or the IMD gridded value",
-                    "(demo entry shown; IMD gridded values are fetched automatically about 2 days later)", "verify")
-        obs = drawer.locator("input").first
-        await d.type(obs, "71.5", delay=80)
-        await d.type(drawer.locator("input").nth(1), "Demo gauge entry", delay=25)
+        await d.cap("Step 5, the observation arrives: verify against a rain gauge or the IMD gridded value",
+                    "(demo gauge entry; IMD gridded values can be fetched about 2 days after the valid day)", "verify")
+        await d.type(drawer.locator("input").first, "71.5", delay=70)
+        await d.type(drawer.locator("input").nth(1), "Demo gauge entry", delay=22)
         await d.click(drawer.get_by_role("button", name="Verify", exact=True))
-        await d.wait(1.2)
+        await d.wait(1.0)
         await d.hl(drawer)
-        await d.cap("Every model's error — and VARUNA's — is stored as verification evidence",
-                    "", "verify-result")
-        await d.wait(4)
         upd = drawer.get_by_role("button", name="Update skill memory")
+        await d.cap("Every model's error, and VARUNA's own, is stored as evidence", "", "verify-result")
+        await d.wait(3.5)
         if await upd.count():
             await d.click(upd)
-            await d.wait(1.2)
-            await d.cap("Skill memory updated: the next forecast's weights learn from this error — a closed loop",
-                        "Analysts update skill; admins approve strategy changes; nobody approves their own", "skill")
-            await d.wait(5)
+            await d.wait(1.0)
+            await d.cap("Step 6, learn: skill memory is updated, so the next forecast's weights use this error",
+                        "Analysts update skill; changes to the method need an administrator's approval", "skill")
+            await d.wait(4.5)
         await d.hl(None)
         await d.click(page.get_by_role("button", name="Close").first)
 
-        # ── 9 · Governance / audit ───────────────────────────────────────────────────────────────
-        await d.chap("LAYER 8 · TRUST & ACCOUNTABILITY")
-        await page.goto(f"{a.url}/dashboard/verification")
-        await settle(0.6)
-        # switch to the auditor workspace (separate read-only role)
-        await d.click(page.get_by_role("button", name="Model analyst").first if await page.get_by_role("button", name="Model analyst").count()
-                      else page.locator("header button[aria-haspopup='menu']"))
-        await d.wait(0.5)
+        # Step 7: audit, as a separate read-only account
+        await d.click(page.locator("header button[aria-haspopup='menu']"))
+        await d.wait(0.6)
+        menu = page.locator("[role=menu]").first
+        await d.hl(menu)
+        await d.cap("Step 7, accountability: each account has one fixed role. Auditing needs a separate auditor account",
+                    "", "role")
+        await d.wait(4)
+        await d.hl(None)
         await d.click(page.get_by_role("menuitem", name="Sign out"))
-        await settle(0.5)
+        await settle(0.4)
         await d.click(page.get_by_role("button", name="Sign in").first)
         await settle(0.3)
-        await d.type(page.locator('input[type="email"]'), "auditor@ncmrwf.gov.in", delay=22)
-        await d.type(page.locator('input[type="password"]'), a.password, delay=35)
+        await d.type(page.locator('input[type="email"]'), "auditor@ncmrwf.gov.in", delay=20)
+        await d.type(page.locator('input[type="password"]'), a.password, delay=32)
         await d.click(page.locator('button[type="submit"]'))
         await page.wait_for_url("**/dashboard**")
         await settle(1.0)
-        await d.cap("A read-only auditor sees every sign-in, data fetch, verification and approval",
-                    "Append-only, hash-chained log — even administrators cannot edit it", "audit")
-        await d.wait(3.5)
-        vbtn = page.get_by_role("button", name="Verify integrity")
-        await d.click(vbtn)
+        await d.cap("The auditor sees every sign-in, fetch, verification and skill update, including the simulated jump",
+                    "Append-only and hash-chained: even administrators cannot edit it", "audit")
+        await d.wait(4)
+        await d.click(page.get_by_role("button", name="Verify integrity"))
         await d.wait(1.2)
         intact = page.locator("text=/Chain intact/").first
         if await intact.count():
             await d.hl(intact.locator("xpath=../.."))
-        await d.cap("One click proves nothing was altered: every entry is SHA-256 chained to the previous one", "", "chain")
+        await d.cap("One click proves nothing was altered: each entry is SHA-256 chained to the one before", "", "chain")
         await d.wait(5)
         await d.hl(None)
         await d.cap("")
         await d.chap("")
 
-        # ── 10 · Outro ───────────────────────────────────────────────────────────────────────────
+        # ── Outro ───────────────────────────────────────────────────────────────────────────────
         await page.set_content(OUTRO)
         await d.mark("outro", "Closing card")
         await d.wait(8)

@@ -17,6 +17,15 @@ npm run preview
 | `VITE_API_BASE` | API base URL when the frontend and backend are deployed on different hosts (default `/api`) |
 | `VITE_PROXY_TARGET` | Dev-server proxy target (default `http://127.0.0.1:8000`) |
 
+## Deploy on Vercel
+
+`vercel.json` is included. In Vercel: **Import project → Root Directory `frontend`** (framework Vite, build `npm run build`, output `dist`).
+
+- `/api/*` is rewritten to the Render API (`https://varuna-a4ou.onrender.com/api/*`). The browser stays on the Vercel domain, so CORS doesn't apply. If your Render URL changes, edit the rewrite in `vercel.json`.
+- Every other path falls back to `index.html`, so `/dashboard/...` links work on refresh.
+- Leave `VITE_API_BASE` unset when using the rewrite. Set it only to call the API directly; then add the Vercel domain to `CORS_ORIGINS` on Render.
+- Render's free tier sleeps after about 15 minutes idle, and the first request then waits for it to wake. Open the site a minute before anyone looks at it.
+
 ## Routes
 
 | URL | Page |
@@ -35,7 +44,8 @@ src/
 ├── services/api.ts            API client + offline demo fixtures   · services/auth.ts  JWT login/logout
 ├── services/platform.ts       Live data, notifications, verify-run, audit, governance, users
 ├── utils/models.ts            Labels/colours for every model slot (classic + live), time formatting
-├── components/layout/         Navbar (compact), ContextBar (filters, wraps), NotificationBell, Sidebar, CommandPalette
+├── pages/LiveDataPage.tsx     Data sources (India-first): IMD grid read/upload, NCMRWF scan, IMD API, global fetch, backfill
+├── components/layout/         Navbar (compact; account menu shows the fixed role), ContextBar (filters, wraps), NotificationBell, Sidebar, CommandPalette
 ├── components/shared/         Traceable (hover/click explanation of any number), PipelineTrace (clickable 14 stages,
 │                              stage-14 verify + skill memory), SourceModeBadge, trust bars, upload modal, …
 ├── components/drawers/        Fusion trace, region detail, failure simulation
@@ -45,13 +55,13 @@ src/
 
 ## Data honesty rules
 
-- `SourceModeBadge` shows where the numbers came from: **LIVE PUBLIC MODELS**, **STORED DATA**, **SYNTHETIC DEMO SCENARIO**, or **OFFLINE DEMO** (backend unreachable). `data_mode` only means "backend reachable".
+- `SourceModeBadge` shows where the numbers came from: **NCMRWF/IMD** (authorised Indian feed), **NCMRWF/IMD + GLOBAL MODELS**, **GLOBAL MODELS OVER INDIA**, **STORED DATA**, **SYNTHETIC DEMO SCENARIO**, or **OFFLINE DEMO** (backend unreachable). The context bar's default data mode is *Auto (India-first)*. `data_mode` only means "backend reachable".
 - Wrap any displayed forecast number in `<Traceable field=… model=…>` so its formula and sources are one hover away; never type numbers into components.
 - Controls are shown only when the signed-in user's permission list (from `/auth/login`) allows the action (`can('data:ingest')` etc.); the API enforces the same matrix.
 - No decorative pulsing / pinging; animation is reserved for loading state.
 - Benchmark numbers come from `GET /api/verification/compare|summary` — never hard-code skill claims in components.
 - Wrong passwords are rejected; the offline demo session is created only when the API cannot be reached.
-- Users can *view as* their own role or a lower one, never escalate (AUDITOR is a separate read-only track). Backend `ANALYST` ↔ UI `MODEL_ANALYST` are normalised in `VarunaContext`.
+- The role is fixed to the signed-in account; there is no role switcher. A different role needs a separate account created by an administrator (AUDITOR is a separate read-only track). Backend `ANALYST` ↔ UI `MODEL_ANALYST` are normalised in `VarunaContext`.
 
 ## Theming (light & dark)
 
