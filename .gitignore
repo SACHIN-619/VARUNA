@@ -31,11 +31,14 @@ backend/data/storage/models/*.pkl
 data/storage/models/*.pkl
 improved_frontend/
 
-# demo recordings (large binaries)
-demo/*.mp4
-demo/*.webm
+# demo recordings (large binaries, never committed)
+demo/
+demo_out/
+*.mp4
+*.webm
 
-# Synthetic datasets and temporary files
+# Synthetic datasets and temporary scratch files
+Claude outputs/
 data/synthetic/
 backend/data/synthetic/
 **/storage_test/
