@@ -346,3 +346,64 @@ def verification_records(region_id: str = Query("IN_TELANGANA_HYDERABAD"), varia
              "forecast": r.forecast_value, "observed": r.observed_value, "abs_error": r.score,
              "window": r.evaluation_window,
              "time": r.verification_time.isoformat() if r.verification_time else None} for r in rows]
+
+
+@router.get("/drift")
+def trust_drift(variable: str = Query("rainfall"), region_id: Optional[str] = Query(None),
+                recent: int = Query(7, ge=3, le=60, description="Most recent verified cases compared with the rest"),
+                min_baseline: int = Query(7, ge=3, le=365),
+                ratio_threshold: float = Query(1.5, gt=1.0, le=5.0),
+                db: Session = Depends(get_db)):
+    """
+    Trust drift from stored verification history (nothing simulated).
+
+    For every model × region × lead time: baseline MAE (older cases) vs recent MAE (last `recent` cases, by valid
+    time). DEGRADING when recent ≥ ratio_threshold × baseline and the gap exceeds a unit floor; IMPROVING when
+    recent ≤ baseline / ratio_threshold; otherwise STABLE. Too few cases → INSUFFICIENT_HISTORY.
+    Drift is a flag for review; it never removes a model by itself.
+    """
+    from app.models.verification import VerificationResult
+    from app.services.harmonization import normalize_region_id
+    floor = {"rainfall": 2.0, "temperature": 0.5, "wind_speed": 0.5}.get(variable, 1.0)
+    q = db.query(VerificationResult).filter(VerificationResult.variable == variable,
+                                            VerificationResult.metric == "MAE",
+                                            VerificationResult.model_id.isnot(None))
+    if region_id:
+        q = q.filter(VerificationResult.region_id == normalize_region_id(region_id))
+    groups: dict = {}
+    for r in q.order_by(VerificationResult.verification_time.asc()).all():
+        groups.setdefault((r.region_id, r.model_id, r.lead_hours), []).append(r)
+
+    items = []
+    for (rid, mid, lead), rows in groups.items():
+        errs = [abs(r.score) for r in rows]
+        biases = [(r.forecast_value - r.observed_value) for r in rows
+                  if r.forecast_value is not None and r.observed_value is not None]
+        n = len(errs)
+        item = {"region_id": rid, "model_id": mid, "lead_hours": lead, "n": n,
+                "errors": [round(e, 2) for e in errs[-60:]],
+                "references": sorted({r.evaluation_window for r in rows if r.evaluation_window}),
+                "first_valid": rows[0].verification_time.isoformat() if rows[0].verification_time else None,
+                "last_valid": rows[-1].verification_time.isoformat() if rows[-1].verification_time else None}
+        if n < recent + min_baseline:
+            item.update({"status": "INSUFFICIENT_HISTORY", "baseline_mae": None, "recent_mae": None, "ratio": None,
+                         "recent_bias": None, "needed": recent + min_baseline})
+        else:
+            base = sum(errs[:-recent]) / (n - recent)
+            rec = sum(errs[-recent:]) / recent
+            rb = biases[-recent:]
+            ratio = rec / max(base, floor)
+            if ratio >= ratio_threshold and rec - base >= floor:
+                status = "DEGRADING"
+            elif ratio <= 1 / ratio_threshold and base - rec >= floor:
+                status = "IMPROVING"
+            else:
+                status = "STABLE"
+            item.update({"status": status, "baseline_mae": round(base, 2), "recent_mae": round(rec, 2),
+                         "ratio": round(ratio, 2), "recent_bias": round(sum(rb) / len(rb), 2) if rb else None})
+        items.append(item)
+    order = {"DEGRADING": 0, "IMPROVING": 1, "STABLE": 2, "INSUFFICIENT_HISTORY": 3}
+    items.sort(key=lambda i: (order[i["status"]], -(i["ratio"] or 0), i["region_id"], i["model_id"]))
+    return {"variable": variable, "rule": {"recent": recent, "min_baseline": min_baseline,
+                                           "ratio_threshold": ratio_threshold, "unit_floor": floor},
+            "counts": {s: sum(1 for i in items if i["status"] == s) for s in order}, "items": items}
