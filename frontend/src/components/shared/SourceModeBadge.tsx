@@ -4,7 +4,9 @@ import { fmtTime } from '../../utils/models';
 
 /** One honest label for where the numbers on screen came from. */
 export const useSourceMode = () => {
-  const { summary, dataMode } = useVaruna();
+  const { summary, dataMode, isLoading } = useVaruna();
+  // Before the first response arrives dataMode is still the placeholder 'DEMO'; don't call that "offline"
+  if (dataMode === 'DEMO' && isLoading) return { key: 'LOADING', label: 'Connecting…', tone: 'sky', detail: 'Waiting for the backend.' };
   if (dataMode === 'DEMO') return { key: 'OFFLINE', label: 'Offline demo · synthetic', tone: 'amber', detail: 'Backend unreachable: local synthetic fixtures.' };
   switch (summary.source_mode) {
     case 'INDIA_OPERATIONAL':

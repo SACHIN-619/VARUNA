@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useVaruna, canViewAs } from '../../context/VarunaContext';
+import { useVaruna } from '../../context/VarunaContext';
 import { logoutUser } from '../../services/auth';
-import { Search, Sun, Moon, Upload, LogOut, Menu, ChevronDown, Home, CheckCircle2, User } from 'lucide-react';
+import { Search, Sun, Moon, Upload, LogOut, Menu, ChevronDown, Home, User, ShieldCheck } from 'lucide-react';
 import { UserRole } from '../../types';
 import { NotificationBell } from './NotificationBell';
 
@@ -24,7 +24,7 @@ const ROLES: Array<{ id: UserRole; label: string; desc: string }> = [
  */
 export const Navbar: React.FC<NavbarProps> = ({ onViewLanding, onLogout }) => {
   const {
-    role, setRole, theme, toggleTheme, setIsCommandPaletteOpen, setIsUploadModalOpen, maxRole,
+    role, theme, toggleTheme, setIsCommandPaletteOpen, setIsUploadModalOpen,
     isMobileNavOpen, setIsMobileNavOpen, authUser, can,
   } = useVaruna();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -79,17 +79,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onViewLanding, onLogout }) => {
               <div className="px-2 py-1.5 border-b border-outline-variant/20 mb-1">
                 <div className="font-bold text-on-surface truncate">{authUser?.name || 'Signed-in user'}</div>
                 <div className="text-[10px] text-on-surface-variant truncate">{authUser?.email}</div>
-                <div className="text-[10px] text-on-surface-variant">Signed in as {ROLES.find(r => r.id === maxRole)?.label}{authUser?.offline ? ' · offline demo' : ''}</div>
+                <div className="text-[10px] text-on-surface-variant">Signed in as {current.label}{authUser?.offline ? ' · offline demo' : ''}</div>
               </div>
-              <div className="px-2 pt-1 text-[10px] text-on-surface-variant uppercase font-bold">View as</div>
-              {ROLES.filter(r => canViewAs(maxRole, r.id)).map(r => (
-                <button key={r.id} role="menuitem" onClick={() => { setRole(r.id); setMenuOpen(false); }}
-                  className={`w-full text-left px-2 py-1.5 rounded-lg flex flex-col ${role === r.id ? 'bg-primary text-on-primary' : 'hover:bg-surface-container-low text-on-surface'}`}>
-                  <span className="flex items-center justify-between font-bold">{r.label}{role === r.id && <CheckCircle2 className="w-3.5 h-3.5" />}</span>
-                  <span className={`text-[10px] ${role === r.id ? 'opacity-80' : 'text-on-surface-variant'}`}>{r.desc}</span>
-                </button>
-              ))}
-              <div className="text-[9px] text-on-surface-variant px-2 pb-1">Viewing as another role filters the menu only; the server still enforces your own permissions.</div>
+              <div className="px-2 py-1.5 flex items-start gap-2">
+                <ShieldCheck className="w-3.5 h-3.5 mt-0.5 text-primary shrink-0" />
+                <div>
+                  <div className="font-bold text-on-surface">{current.label} workspace</div>
+                  <div className="text-[10px] text-on-surface-variant">{current.desc}</div>
+                  <div className="text-[9px] text-on-surface-variant mt-1">Your role is fixed to this account. Another role needs a separate account created by an administrator.</div>
+                </div>
+              </div>
               <div className="border-t border-outline-variant/20 mt-1 pt-1">
                 {onViewLanding && (
                   <button role="menuitem" onClick={() => { setMenuOpen(false); onViewLanding(); }} className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-surface-container-low text-on-surface flex items-center gap-2">

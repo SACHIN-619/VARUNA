@@ -24,7 +24,6 @@ import { listNotifications, VarunaNotification } from '../services/platform';
 
 interface VarunaContextType {
   role: UserRole;
-  setRole: (role: UserRole) => void;
   regionId: string;
   setRegionId: (id: string) => void;
   variable: VariableType;
@@ -114,14 +113,6 @@ export const normalizeRole = (r?: string | null): UserRole => {
   return 'FORECASTER';
 };
 
-// Privilege order for "view as": a user may preview the UI as their own role or a lower one, never higher.
-// AUDITOR is a separate, read-only track: an auditor sees only the auditor workspace.
-export const ROLE_RANK: Record<UserRole, number> = { FORECASTER: 0, OPERATIONS: 1, MODEL_ANALYST: 2, ADMIN: 3, AUDITOR: 3 };
-export const canViewAs = (max: UserRole, target: UserRole): boolean => {
-  if (max === 'AUDITOR') return target === 'AUDITOR';
-  if (target === 'AUDITOR') return max === 'ADMIN';
-  return ROLE_RANK[target] <= ROLE_RANK[max];
-};
 
 /** Each role lands on its own workspace after sign-in. */
 export const ROLE_HOME: Record<UserRole, string> = {
@@ -142,11 +133,9 @@ const routeFromPath = (fallback: string): string => {
 export const VarunaProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [authUser] = useState<AuthUser | null>(() => getStoredUser());
   const maxRole = normalizeRole(getStoredUser()?.role);
-  const [role, setRoleState] = useState<UserRole>(maxRole);
-  const setRole = (r: UserRole) => {
-    // Client-side role switching is a *view filter* only; never escalate above the signed-in role
-    if (canViewAs(maxRole, r)) setRoleState(r);
-  };
+  // The role is fixed to the signed-in account. There is no client-side role switching:
+  // a different role means a different account, created by an administrator.
+  const role: UserRole = maxRole;
   const can = (perm: string) => hasPermission(authUser, perm);
   const [dataSourcePref, setDataSourcePrefState] = useState<DataSourcePref>(() => {
     try { return (localStorage.getItem('varuna_source') as DataSourcePref) || 'auto'; } catch { return 'auto'; }
@@ -343,7 +332,6 @@ export const VarunaProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     <VarunaContext.Provider
       value={{
         role,
-        setRole,
         regionId,
         setRegionId,
         variable,
