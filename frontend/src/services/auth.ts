@@ -33,21 +33,40 @@ export const OFFLINE_PERMISSIONS: Record<AuthUser['role'], string[]> = {
 
 export class InvalidCredentialsError extends Error {}
 
-export async function loginUser(email: string, password: string): Promise<AuthUser> {
-  let res: Response;
-  try {
-    const formData = new URLSearchParams();
-    formData.append('username', email);
-    formData.append('password', password);
+const API = (): string => ((import.meta as any).env?.VITE_API_BASE as string) || '/api';
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-    res = await fetch(`${((import.meta as any).env?.VITE_API_BASE as string) || '/api'}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString(),
-    });
-  } catch (e) {
-    // Backend unreachable -> offline demo session (clearly marked, read-only demo data)
-    console.warn('Backend API unreachable, starting offline demo session.', e);
+/**
+ * Sign in. A hosted free-tier API can be asleep: the first requests then fail or return 502/503/504 for up to
+ * a minute. Keep retrying for WAKE_TIMEOUT_MS (reporting progress) before falling back to the offline demo.
+ */
+const WAKE_TIMEOUT_MS = 75_000;
+
+export async function loginUser(email: string, password: string, onStatus?: (msg: string) => void): Promise<AuthUser> {
+  const formData = new URLSearchParams();
+  formData.append('username', email);
+  formData.append('password', password);
+  const t0 = Date.now();
+  let res: Response | null = null;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(`${API()}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+      });
+      if (![502, 503, 504].includes(res.status)) break;
+    } catch (e) {
+      res = null;
+    }
+    const waited = Date.now() - t0;
+    if (waited > WAKE_TIMEOUT_MS) break;
+    onStatus?.(`Waking the server… ${Math.round(waited / 1000)} s (a sleeping free-tier server takes up to a minute)`);
+    await sleep(attempt < 2 ? 2000 : 5000);
+  }
+  if (!res || [502, 503, 504].includes(res.status)) {
+    // Backend still unreachable -> offline demo session (clearly marked, read-only)
+    console.warn('Backend API unreachable, starting offline demo session.');
     return offlineDemoLogin(email);
   }
 
@@ -73,8 +92,8 @@ export async function loginUser(email: string, password: string): Promise<AuthUs
     if (res.status === 401 || res.status === 403 || res.status === 422) {
       throw new InvalidCredentialsError('Invalid email or password.');
     }
-    if (res.status >= 500 || res.status === 404 || res.status === 502) {
-      // API gateway up but backend down -> offline demo
+    if (res.status >= 500 || res.status === 404) {
+      // API route missing or backend error -> offline demo (read-only)
       return offlineDemoLogin(email);
     }
     throw new InvalidCredentialsError(`Sign-in failed (HTTP ${res.status}).`);
@@ -95,7 +114,8 @@ function offlineDemoLogin(email: string): AuthUser {
     email: email,
     role: role,
     access_token: 'offline_demo_' + Date.now(),
-    permissions: OFFLINE_PERMISSIONS[role],
+    // Read-only: with no backend nothing can be saved, so no upload / fetch / verify controls are offered
+    permissions: OFFLINE_PERMISSIONS[role].filter(p => p === 'forecast:view' || p === 'verification:view'),
     region_scope: ['*'],
     offline: true,
   };
@@ -105,6 +125,31 @@ function offlineDemoLogin(email: string): AuthUser {
   return user;
 }
 
+export const SESSION_EXPIRED_EVENT = 'varuna:session-expired';
+
+/**
+ * Watch API responses: a 401 on a request that carried our token means the session is no longer valid
+ * (expired after 24 h, signed by a different server key, or an offline demo token). The dashboard then asks
+ * the user to sign in again instead of showing raw "Authentication required" errors.
+ */
+export function installSessionWatcher(): void {
+  const w = window as any;
+  if (w.__varunaFetchWatched) return;
+  w.__varunaFetchWatched = true;
+  const orig = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const res = await orig(input, init);
+    try {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const h = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
+      if (res.status === 401 && h.has('Authorization') && url.includes('/api/') && !url.includes('/auth/login')) {
+        window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+      }
+    } catch { /* never break the request */ }
+    return res;
+  };
+}
+
 export function getStoredUser(): AuthUser | null {
   const raw = localStorage.getItem(USER_KEY);
   if (!raw) return null;
@@ -112,6 +157,8 @@ export function getStoredUser(): AuthUser | null {
     const u = JSON.parse(raw) as AuthUser;
     // sessions stored by an older build have no permission list
     if (!u.permissions) u.permissions = OFFLINE_PERMISSIONS[u.role] || [];
+    // offline sessions stored by an older build carried write permissions they could never use
+    if (u.offline) u.permissions = u.permissions.filter(p => p === 'forecast:view' || p === 'verification:view');
     return u;
   } catch {
     return null;

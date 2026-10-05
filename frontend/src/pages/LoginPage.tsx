@@ -19,19 +19,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBackToLanding }
   const [password, setPassword] = useState('varuna2026');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const user = await loginUser(email.trim(), password);
+      const user = await loginUser(email.trim(), password, setStatus);
       onLogin(user);
     } catch (err: any) {
       // Wrong credentials must be rejected (the old "guaranteed fallback" logged in any password)
       setError(err?.message || 'Sign-in failed.');
     } finally {
       setLoading(false);
+      setStatus(null);
     }
   };
 
@@ -41,12 +43,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBackToLanding }
     setError(null);
     setLoading(true);
     try {
-      const user = await loginUser(demoEmail, 'varuna2026');
+      const user = await loginUser(demoEmail, 'varuna2026', setStatus);
       onLogin(user);
     } catch (err: any) {
       setError(err?.message || 'Sign-in failed.');
     } finally {
       setLoading(false);
+      setStatus(null);
     }
   };
 
@@ -181,6 +184,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBackToLanding }
                 autoComplete="current-password"
               />
             </div>
+
+            {status && (
+              <div role="status" style={{
+                background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.4)',
+                borderRadius: '8px', padding: '0.7rem 0.9rem', marginBottom: '1rem',
+                color: '#bae6fd', fontSize: '0.85rem', fontWeight: 600,
+              }}>
+                {status}
+              </div>
+            )}
 
             {error && (
               <div style={{
