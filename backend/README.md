@@ -15,6 +15,13 @@ uvicorn app.main:app --reload --port 8000
 - On start-up the schema is created, demo users/regions/models/datasets are seeded, and the ML meta-model is loaded (or retrained if the saved artifact is missing or stale).
 - Relative paths in `.env` (`sqlite:///./varuna_dev.db`, `./data/storage/...`) are resolved against **this `backend/` folder**, whatever directory you start from.
 
+## Deploying on Render
+
+- **Root Directory** `backend` · **Build** `pip install -r requirements.txt` · **Start** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+- Python is pinned to 3.11.9 by `.python-version`. Without it, Render picks its newest default (3.14 at the time of writing).
+- Environment: `DATABASE_URL` (your Neon URL), `SECRET_KEY` (any long random string), `ENVIRONMENT=production`. Optional: `CORS_ORIGINS`, `GROQ_API_KEY` / `GROK_API_KEY`.
+- **"error parsing value for field CORS_ORIGINS"** was caused by a plain (non-JSON) value in older builds; any of the forms above now works.
+
 ## PostgreSQL / Neon
 
 `init_db()` creates new tables, adds new columns and widens changed ones on an existing database (no data loss), so an older Neon schema upgrades on first start. The suite was run against PostgreSQL 16 starting from the **original** schema with the session time zone set to Asia/Kolkata: 77/77 pass, all 43 parameter-free GET endpoints return 200, audit chain intact. Audit timestamps are stored as naive UTC so the hash chain does not depend on the server time zone.
@@ -37,7 +44,7 @@ pytest tests -q          # 78 tests
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///./varuna_dev.db` | PostgreSQL/Neon: `postgresql://user:pass@host/db?sslmode=require` (psycopg2 or psycopg 3 auto-detected) |
 | `SECRET_KEY` | dev default | **Set in production** (a warning is logged otherwise) |
-| `CORS_ORIGINS` | `["*"]` | JSON list; use explicit origins in production |
+| `CORS_ORIGINS` | `*` | Comma-separated (`https://your-app.vercel.app,http://localhost:3000`) or a JSON list; empty means `*`. Not needed when the frontend uses the Vercel `/api` rewrite |
 | `ML_MODEL_PATH` | `./data/storage/models` | GBDT artifacts + `artifact_manifest.json` |
 | `DATA_CHUNK_SIZE` | `10000` | Rows per ingestion chunk |
 | `ENABLE_GROK`, `GROK_API_KEY`, `GROK_MODEL`, `LLM_BASE_URL`, `LLM_TIMEOUT_SECONDS` | off | Optional briefing LLM; any OpenAI-compatible endpoint. A Groq key (`gsk_…`) switches the endpoint to `https://api.groq.com/openai/v1` automatically (model `GROQ_MODEL`, default `llama-3.3-70b-versatile` — check Groq's current model list). The LLM only rephrases: any number not present in the computed facts makes VARUNA discard the text and use the deterministic template. Cached per fact-set |

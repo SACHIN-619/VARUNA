@@ -4,9 +4,9 @@ SIH 2026 Problem Statement: SIH26081
 """
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
@@ -66,8 +66,10 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = Field(default_factory=lambda: os.getenv("LLM_BASE_URL", "https://api.x.ai/v1"))
     LLM_TIMEOUT_SECONDS: float = Field(default_factory=lambda: float(os.getenv("LLM_TIMEOUT_SECONDS", "4.0")))
 
-    # CORS Origins
-    CORS_ORIGINS: List[str] = [
+    # CORS Origins. The environment variable may be a JSON list (["https://a.app","https://b.app"]),
+    # a comma-separated list (https://a.app,https://b.app), a single origin, or empty (= defaults).
+    # Union[..., str] lets pydantic-settings fall back to the raw string instead of crashing on non-JSON.
+    CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
@@ -75,6 +77,22 @@ class Settings(BaseSettings):
         "https://*.onrender.com",
         "*"
     ]
+
+    @field_validator("CORS_ORIGINS", mode="after")
+    @classmethod
+    def _split_cors(cls, v):
+        if isinstance(v, str):
+            raw = v.strip()
+            if not raw:
+                return ["*"]
+            if raw.startswith("["):
+                import json
+                try:
+                    return [str(o).strip() for o in json.loads(raw) if str(o).strip()]
+                except ValueError:
+                    raw = raw.strip("[]")
+            return [o.strip().strip('"').strip("'").rstrip("/") for o in raw.split(",") if o.strip()]
+        return [str(o).strip().rstrip("/") for o in v if str(o).strip()]
 
     # Provenance Modes: PUBLIC_BENCHMARK | SYNTHETIC_STRESS_TEST | AUTHORIZED_OPERATIONAL_FEED
     DEFAULT_DATA_PROVENANCE: str = "SYNTHETIC_STRESS_TEST"
