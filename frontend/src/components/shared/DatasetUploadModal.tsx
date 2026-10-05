@@ -16,6 +16,9 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
   const [uploadStage, setUploadStage] = useState<string>('');
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  // What the file is. Presets are synthetic; a custom file must be labelled honestly by the uploader.
+  const [provenance, setProvenance] = useState<string>('SYNTHETIC_STRESS_TEST');
+  const [isPreset, setIsPreset] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -36,6 +39,7 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setSelectedFile(e.dataTransfer.files[0]);
+      setIsPreset(false); setResult(null);
       setError(null);
     }
   };
@@ -43,6 +47,7 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
+      setIsPreset(false); setResult(null);
       setError(null);
     }
   };
@@ -51,6 +56,7 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
     const blob = new Blob([contentStr], { type: 'text/csv' });
     const file = new File([blob], `${presetName}.csv`, { type: 'text/csv' });
     setSelectedFile(file);
+    setIsPreset(true); setProvenance('SYNTHETIC_STRESS_TEST'); setResult(null);
     setError(null);
   };
 
@@ -62,18 +68,8 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
     setResult(null);
 
     try {
-      setUploadStage('Stage 1/4: Calculating SHA-256 & Chunking Data...');
-      await new Promise(r => setTimeout(r, 400));
-      
-      setUploadStage('Stage 2/4: QC & Physical Range Sanitization...');
-      await new Promise(r => setTimeout(r, 400));
-
-      setUploadStage('Stage 3/4: Harmonization & Unit Normalization...');
-      const res = await uploadDataset(selectedFile, 'SYNTHETIC_STRESS_TEST');
-
-      setUploadStage('Stage 4/4: Triggering 14-Stage ML Fusion Pipeline...');
-      await new Promise(r => setTimeout(r, 300));
-
+      setUploadStage('Uploading · SHA-256 checksum · QC · unit harmonisation on the server…');
+      const res = await uploadDataset(selectedFile, isPreset ? 'SYNTHETIC_STRESS_TEST' : provenance);
       setResult(res);
       setUploading(false);
       
@@ -109,7 +105,7 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
             </div>
             <div>
               <h2 className="font-headline font-bold text-lg text-on-surface flex items-center gap-2">
-                SYNTHETIC DATASET INGESTION ENGINE
+                DATASET INGESTION
               </h2>
               <p className="text-xs font-mono text-on-surface-variant">
                 Upload CSV / JSON / NetCDF datasets directly into VARUNA's 14-Stage Canonical Pipeline
@@ -183,7 +179,7 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.json,.parquet,.zip"
+                accept=".csv,.json,.jsonl,.parquet,.nc,.zip"
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -205,7 +201,7 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-on-surface">
-                      Drag & Drop synthetic dataset file here
+                      Drag & drop a forecast or observation file here
                     </p>
                     <p className="text-xs text-on-surface-variant font-mono mt-1">
                       Supports CSV, JSON, NetCDF4, or ZIP Archives
@@ -215,6 +211,25 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
               )}
             </div>
           </div>
+
+          {selectedFile && !isPreset && (
+            <div>
+              <label htmlFor="upload-provenance" className="text-xs font-mono uppercase font-bold text-on-surface-variant tracking-wider mb-2 block">
+                What is this file?
+              </label>
+              <select id="upload-provenance" value={provenance} onChange={e => setProvenance(e.target.value)}
+                className="w-full p-2 rounded-lg border border-outline-variant/40 bg-surface-container-lowest text-on-surface text-xs font-mono">
+                <option value="SYNTHETIC_STRESS_TEST">Synthetic / test data</option>
+                <option value="PUBLIC_BENCHMARK">Public reference data (e.g. global models, reanalysis)</option>
+                <option value="AUTHORIZED_OPERATIONAL_FEED">Authorised NCMRWF / IMD product</option>
+              </select>
+              <p className="text-[11px] font-mono text-on-surface-variant mt-1">
+                {provenance === 'AUTHORIZED_OPERATIONAL_FEED'
+                  ? 'Only for files actually received from NCMRWF or IMD. These take priority over public copies in the blend.'
+                  : 'This label is stored with every record and shown wherever the data is used.'}
+              </p>
+            </div>
+          )}
 
           {/* Progress or Error Display */}
           {uploading && (
@@ -243,13 +258,17 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
             <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 rounded-lg text-xs font-mono space-y-2">
               <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
                 <CheckCircle2 className="w-4 h-4" />
-                Dataset Successfully Ingested & Bound to Canonical Pipeline!
+                Dataset ingested ({result.provenance || 'labelled'})
               </div>
               <div className="grid grid-cols-2 gap-2 text-on-surface-variant pt-1">
                 <div>Dataset ID: <span className="text-emerald-600 dark:text-emerald-400">{result.dataset_id}</span></div>
-                <div>Records Parsed: <span className="text-emerald-600 dark:text-emerald-400">{result.accepted_records || result.record_count || 4}</span></div>
-                <div>Format: <span className="text-on-surface">{result.format || 'CSV'}</span></div>
-                <div>Status: <span className="text-emerald-600 dark:text-emerald-400">14_STAGE_FUSED</span></div>
+                <div>Records ingested: <span className="text-emerald-600 dark:text-emerald-400">{result.records_ingested ?? result.records_processed ?? '—'}</span>
+                  {' '}of {result.records_processed ?? '—'}</div>
+                <div>Format: <span className="text-on-surface">{result.format || '—'}</span></div>
+                <div>Rejected / duplicates: <span className="text-on-surface">{result.records_rejected ?? 0} / {result.duplicates_skipped ?? 0}</span></div>
+                <div>Status: <span className="text-emerald-600 dark:text-emerald-400">{result.status || '—'}</span></div>
+                {result.checksum_sha256 && <div className="col-span-2 break-all">SHA-256: <span className="text-on-surface">{result.checksum_sha256}</span></div>}
+                <div className="col-span-2">The dashboard was refreshed; forecasts now include this file when it matches the selected region, variable and lead time.</div>
               </div>
             </div>
           )}
@@ -258,7 +277,7 @@ export const DatasetUploadModal: React.FC<DatasetUploadModalProps> = ({ isOpen, 
         {/* Footer Actions */}
         <div className="p-4 px-6 border-t border-surface-border bg-surface-container-high/50 flex items-center justify-between">
           <span className="text-[11px] font-mono text-on-surface-variant">
-            Modes: SYNTHETIC_STRESS_TEST • AUTHORIZED_OPERATIONAL
+            CSV · JSON · JSONL · Parquet · NetCDF · ZIP
           </span>
           <div className="flex items-center gap-3">
             <button

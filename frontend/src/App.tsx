@@ -24,6 +24,7 @@ import { WhyThisForecastPage } from './pages/WhyThisForecastPage';
 import { WhatChangedPage } from './pages/WhatChangedPage';
 import { VerificationCentrePage } from './pages/VerificationCentrePage';
 import { ModelPerformancePage } from './pages/ModelPerformancePage';
+import { SessionBanner } from './components/layout/SessionBanner';
 import { FailureMemoryPage } from './pages/FailureMemoryPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { ExperimentsPage } from './pages/ExperimentsPage';
@@ -109,6 +110,7 @@ const AppContent: React.FC<AppContentProps> = ({ onViewLanding, onLogout }) => {
         <main className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!isControlRoomFullscreen ? (isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-72') : ''}`}>
           {/* Forecast context (filters) — wraps instead of hiding at narrow widths / high zoom */}
           <ContextBar />
+          <SessionBanner onLogout={onLogout} />
 
           {/* Page Viewport */}
           <div className="flex-1 w-full bg-met-grid">
